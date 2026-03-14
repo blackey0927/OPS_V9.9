@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔐 OPS 系統 (V9.9 終極修復版)</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  
+  <script>
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', event => {
+      if (event.keyCode === 123 || 
+         (event.ctrlKey && event.shiftKey && (event.keyCode === 73 || event.keyCode === 74 || event.keyCode === 67)) || 
+         (event.ctrlKey && event.keyCode === 85)) {
+        event.preventDefault(); return false;
+      }
+    });
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
+
+  <script src="./database.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+    body { margin: 0; background: #0a0a0f; color: #ccc; font-family: 'Noto Sans TC', sans-serif; min-height: 100vh; user-select: none; -webkit-user-select: none; }
+    #lock-ui { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .auth-card { background: #12121a; border: 1px solid #c9a84c; border-radius: 16px; padding: 30px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+    .auth-card h1 { font-size: 20px; color: #c9a84c; text-align: center; margin-bottom: 5px; }
+    .auth-card input { width: 100%; padding: 12px; background: #000; border: 1px solid rgba(201,168,76,0.3); border-radius: 8px; color: #fff; margin-bottom: 15px; box-sizing: border-box; outline: none; }
+    .auth-card input:focus { border-color: #c9a84c; }
+    .auth-card button { width: 100%; padding: 12px; background: linear-gradient(135deg, #c9a84c, #a07830); color:#000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { background: transparent; border: 1px solid #555; color: #888; flex: 1; border-radius: 8px; padding: 8px; cursor: pointer;}
+    .tab-btn.active { border-color: #c9a84c; color: #c9a84c; background: rgba(201,168,76,0.1); }
+    
+    :root { --bg: #0a0a0a; --text: #ccc; --subtext: #888; --card: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.08); --inputBg: rgba(255,255,255,0.04); --promptBg: rgba(0,0,0,0.3); }
+    #ops-app-root { display: none; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--card); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.5); }
+    .ops-select { width: 100%; padding: 9px 32px 9px 12px; border-radius: 7px; background: var(--inputBg); color: var(--text); font-size: 13px; appearance: none; -webkit-appearance: none; cursor: pointer; outline: none; border: 1px solid var(--border); transition: border-color 0.15s, box-shadow 0.15s; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+    .ops-select:focus { box-shadow: 0 0 0 2px rgba(128,128,128,0.2); }
+    .ops-select option { background: var(--bg); color: var(--text); }
+    .ops-select-wrap { position: relative; }
+    .ops-selected-badge { margin-top: 6px; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-family: monospace; line-height: 1.5; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .comfy-image { animation: fadeIn 0.5s ease-out; }
+  </style>
+</head>
+<body>
+
+<div id="lock-ui">
+  <div class="auth-card">
+    <h1>🔐 OUTFIT PROMPT SYSTEM</h1>
+    <p style="font-size:11px; color:#888; text-align:center; margin-bottom:20px;">AES-256 軍事級加密防護 · 僅限授權使用者</p>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('unlock')" id="tab-u">🔑 解鎖內容</button>
+      <button class="tab-btn" onclick="switchTab('req')" id="tab-r">📩 申請授權</button>
+    </div>
+    <div id="panel-unlock">
+      <input type="email" id="u-email" placeholder="您的 Email 信箱">
+      <input type="password" id="u-pw" placeholder="輸入專屬密碼" onkeydown="if(event.key==='Enter') doUnlock()">
+      <button id="unlock-btn" onclick="doUnlock()">解鎖進入系統</button>
+    </div>
+    <div id="panel-req" style="display:none;">
+      <input type="email" id="r-email" placeholder="輸入您的 Email">
+      <input type="text" id="r-name" placeholder="您的稱呼">
+      <button onclick="sendReq()">發送 Email 申請</button>
+      <p style="font-size:11px; color:#888; margin-top:10px;">送出後請等待獻爸審核並發送專屬密碼。</p>
+    </div>
+  </div>
+</div>
+
+<div id="ops-app-root"></div>
+
+<script>
+const FORMSPREE_ID = "mqeyppjp";
+const _k = () => ["36","53","6f","4a","7a","37","30","39","40","37"].map(x=>String.fromCharCode(parseInt(x,16))).join('');
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.OPS_DB && Object.keys(window.OPS_DB).length > 0) {
+    document.getElementById('lock-ui').style.display = 'none';
+    document.getElementById('ops-app-root').style.display = 'block';
+    setTimeout(() => { if(window.launchOPSApp) window.launchOPSApp(); }, 100);
+    return;
+  }
+  const savedEmail = localStorage.getItem('ops_user_email');
+  const savedPw = localStorage.getItem('ops_user_pw');
+  if (savedEmail && savedPw) {
+    document.getElementById('u-email').value = savedEmail;
+    document.getElementById('u-pw').value = savedPw;
+    doUnlock(true);
+  }
+});
+
+function switchTab(t) {
+  document.getElementById('panel-unlock').style.display = t === 'unlock' ? 'block' : 'none';
+  document.getElementById('panel-req').style.display = t === 'req' ? 'block' : 'none';
+  document.getElementById('tab-u').className = t === 'unlock' ? 'tab-btn active' : 'tab-btn';
+  document.getElementById('tab-r').className = t === 'req' ? 'tab-btn active' : 'tab-btn';
+}
+
+function sendReq() {
+  const email = document.getElementById('r-email').value;
+  const name = document.getElementById('r-name').value;
+  if(!email.includes('@')) return alert('請輸入正確 Email');
+  fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ email: email, name: name, message: "請求 OPS 系統開通權限" })
+  }).then(() => alert("✅ 申請已送出！請等待獻爸發放專屬密碼。"));
+}
+
+function b64ToBytes(b64){
+  const bin = atob(b64); const b = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) b[i] = bin.charCodeAt(i); return b;
+}
+
+async function doUnlock(isAutoLogin = false) {
+  const email = document.getElementById('u-email').value.trim().toLowerCase();
+  const pw = document.getElementById('u-pw').value.trim().toUpperCase();
+  const btn = document.getElementById('unlock-btn');
+  if(!email || !pw) return !isAutoLogin && alert("請填寫完整資訊！");
+
+  btn.innerText = "驗證與解密中..."; btn.disabled = true;
+
+  try {
+    const enc = new TextEncoder();
+    const keyMatHMAC = await crypto.subtle.importKey('raw', enc.encode(_k()), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', keyMatHMAC, enc.encode(email));
+    const expected = Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('').substring(0,10).toUpperCase();
+    
+    if(pw !== expected) { 
+      btn.innerText = "解鎖進入系統"; btn.disabled = false; 
+      localStorage.removeItem('ops_user_pw'); 
+      return !isAutoLogin && alert("❌ 信箱或密碼錯誤！"); 
+    }
+
+    const response = await fetch('./database_secured.txt');
+    if(!response.ok) throw new Error("找不到加密數據庫");
+    const encryptedData = await response.json();
+
+    const salt = b64ToBytes(encryptedData.salt);
+    const nonce = b64ToBytes(encryptedData.nonce);
+    const ct = b64ToBytes(encryptedData.ct);
+    
+    const keyMatAES = await crypto.subtle.importKey('raw', enc.encode(_k()), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:310000, hash:'SHA-256'}, keyMatAES, {name:'AES-GCM', length:256}, false, ['decrypt']);
+    const decrypted = await crypto.subtle.decrypt({name:'AES-GCM', iv:nonce}, key, ct);
+    const dbScriptText = new TextDecoder().decode(decrypted);
+    
+    const scriptEl = document.createElement('script');
+    scriptEl.textContent = dbScriptText;
+    document.body.appendChild(scriptEl);
+
+    localStorage.setItem('ops_user_email', email);
+    localStorage.setItem('ops_user_pw', pw);
+
+    document.getElementById('lock-ui').style.display = 'none';
+    document.getElementById('ops-app-root').style.display = 'block';
+    
+    if(window.launchOPSApp) window.launchOPSApp();
+
+  } catch(e) {
+    console.error(e);
+    btn.innerText = "解鎖進入系統"; btn.disabled = false;
+    if(!isAutoLogin) alert("❌ 解密失敗！請確認資料庫檔案是否已正確上傳至 GitHub。");
+  }
+}
+</script>
+
+<script type="text/babel" data-presets="react,env">
+  window.launchOPSApp = function() {
+    const { useState, useEffect, useRef } = React;
+
+    const DB = window.OPS_DB || {};
+    const MAKEUP_DB = DB.MAKEUP || []; const FABRIC_DB = DB.FABRIC || []; const BOTTOM_DB = DB.BOTTOM || [];
+    const LIGHT_DB = DB.LIGHT || []; const ACC_DB = DB.ACC || []; const ACC_GROUPS = DB.ACC_GROUPS || [];
+    const EMOTION_DB = DB.EMOTION || []; const POSE_DB = DB.POSE || []; const SCENE_DB = DB.SCENE || [];
+    const BRA_DB = DB.BRA || []; const BASE_CHARS = DB.CHARS || {};
+    const DIRECTION_DB = DB.DIRECTION || { ref_prefix:[], ref_core:[], ref_suffix:[], ratio:[], person_size:[], expression:[], comp_rule:[], comp_bg:[] };
+    const OUTFIT_STYLE_DB = DB.OUTFIT_STYLE || []; const HAIR_DB = DB.HAIR || []; const AI_GEN = DB.AI_GEN || {};
+
+    const COMFY_WORKFLOW_TEMPLATE = { "3": { "inputs": { "seed": 0, "steps": 10, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": [ "33", 0 ], "positive": [ "6", 0 ], "negative": [ "7", 0 ], "latent_image": [ "13", 0 ] }, "class_type": "KSampler" }, "6": { "inputs": { "text": "", "speak_and_recognation": { "__value__": [ false, true ] }, "clip": [ "18", 0 ] }, "class_type": "CLIPTextEncode" }, "7": { "inputs": { "text": "", "speak_and_recognation": { "__value__": [ false, true ] }, "clip": [ "18", 0 ] }, "class_type": "CLIPTextEncode" }, "8": { "inputs": { "samples": [ "3", 0 ], "vae": [ "17", 0 ] }, "class_type": "VAEDecode" }, "13": { "inputs": { "width": 1024, "height": 1536, "batch_size": 1 }, "class_type": "EmptySD3LatentImage" }, "16": { "inputs": { "unet_name": "Zimage\\z_image_turbo_bf16.safetensors", "weight_dtype": "default" }, "class_type": "UNETLoader" }, "17": { "inputs": { "vae_name": "ae.safetensors" }, "class_type": "VAELoader" }, "18": { "inputs": { "clip_name": "qwen_3_4b.safetensors", "type": "lumina2", "device": "default" }, "class_type": "CLIPLoader" }, "30": { "inputs": { "filename_prefix": "OPS/Zimage", "images": [ "8", 0 ] }, "class_type": "SaveImage" }, "33": { "inputs": { "lora_name": "Zimage\\9ECM8VPGJGRE2H0VQ4XM1X1X20.safetensors", "strength_model": 0.4, "model": [ "34", 0 ] }, "class_type": "LoraLoaderModelOnly" }, "34": { "inputs": { "lora_name": "Zimage\\MJ_ZImage_V2_14000.safetensors", "strength_model": 0.3, "model": [ "37", 0 ] }, "class_type": "LoraLoaderModelOnly" }, "37": { "inputs": { "lora_name": "Zimage\\Kook_Zimage_真实幻想_Turbo.safetensors", "strength_model": 0.5, "model": [ "16", 0 ] }, "class_type": "LoraLoaderModelOnly" }, "38": { "inputs": { "seed": 0, "steps": 10, "cfg": 1, "sampler_name": "res_2s", "scheduler": "sgm_uniform", "denoise": 1, "model": [ "33", 0 ], "positive": [ "6", 0 ], "negative": [ "7", 0 ], "latent_image": [ "13", 0 ] }, "class_type": "KSampler" }, "39": { "inputs": { "samples": [ "38", 0 ], "vae": [ "17", 0 ] }, "class_type": "VAEDecode" }, "40": { "inputs": { "filename_prefix": "OPS/Zimage_V2", "images": [ "39", 0 ] }, "class_type": "SaveImage" }, "41": { "inputs": { "output_path": "G:\\BaiduSyncdisk\\AI\\01-OUTPUT\\[time(%Y%m%d)]/JPG/07Z_Image/", "filename_prefix": "Z_image[time(%Y%m%d)]", "filename_delimiter": "_", "filename_number_padding": 4, "filename_number_start": "false", "extension": "jpg", "dpi": 300, "quality": 95, "optimize_image": "true", "lossless_webp": "false", "overwrite_mode": "false", "show_history": "false", "show_history_by_prefix": "true", "embed_workflow": "false", "show_previews": "true", "images": [ "39", 0 ] }, "class_type": "Image Save" } };
+
+    const darkPalette = { orange:"#ff6b35", cyan:"#00d4ff", pink:"#ff85c2", purple:"#a855f7", yellow:"#ffd700", green:"#00ff95", red:"#ff3d6e", rose:"#f43f5e", cloud:"#3b82f6" };
+    const lightPalette = { orange:"#D95D00", cyan:"#0284C7", pink:"#D91E74", purple:"#7C3AED", yellow:"#B45309", green:"#059669", red:"#DC2626", rose:"#E11D48", cloud:"#2563EB" };
+    const THEMES = { dark: { name: "🌙 經典暗黑", bg: "#0a0a0a", text: "#ccc", subtext: "#888", card: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", inputBg: "rgba(255,255,255,0.04)", promptBg: "rgba(0,0,0,0.3)", palette: darkPalette }, light: { name: "☀️ 日間模式", bg: "#F3F4F6", text: "#111827", subtext: "#4B5563", card: "#FFFFFF", border: "#D1D5DB", inputBg: "#F9FAFB", promptBg: "#F3F4F6", palette: lightPalette }, cyberpunk: { name: "🎸 賽博龐克", bg: "#0d0208", text: "#fecdd3", subtext: "#fda4af", card: "rgba(255,0,85,0.05)", border: "rgba(255,0,85,0.3)", inputBg: "rgba(255,0,85,0.08)", promptBg: "rgba(0,0,0,0.4)", palette: darkPalette } };
+
+    const GEMINI_BASE = [ { id: "gb1", label: "專業人像攝影", zh: "專業人像攝影", en: "Professional portrait photography" }, { id: "gb2", label: "自然光", zh: "自然光", en: "Natural light" }, { id: "gb3", label: "人物光", zh: "人物光", en: "Character light" }, { id: "gb4", label: "全身", zh: "全身", en: "Full body shot" }, { id: "gb5", label: "半身", zh: "半身", en: "Half body shot" }, { id: "gb6", label: "大頭照", zh: "大頭照", en: "Close-up headshot" } ];
+    const GEMINI_LENS = [ { id: "gl1", label: "超廣角 14-24mm", zh: "超廣角 14-24mm:誇張視角與透視變形,強調前景,背景廣闊", en: "Ultra wide-angle 14-24mm: exaggerated perspective and distortion, emphasizes foreground, broad background" }, { id: "gl2", label: "廣角 24-35mm", zh: "廣角(Wide)24-35mm包含環境,輕微透視感,動態構圖", en: "Wide-angle 24-35mm: includes environment, slight perspective, dynamic composition" }, { id: "gl3", label: "標準 35-50mm", zh: "標準 (Standard) 35-50mm接近人眼視角,真實自然,適合紀實與半身肖像", en: "Standard 35-50mm: close to human eye perspective, real and natural, suitable for documentary and half-body portraits" }, { id: "gl4", label: "中焦 85mm", zh: "中焦 (Medium Telephoto)人像攝影黃金焦段,壓縮背景,突出主體,虚化柔和", en: "Medium Telephoto 85mm: golden focal length for portraits, compresses background, highlights subject, soft bokeh" }, { id: "gl5", label: "長焦 135mm+", zh: "長焦(135mm+)極致壓縮,背景完全虚化,聚焦面部細部與情感", en: "Telephoto 135mm+: extreme compression, completely blurred background, focuses on facial details and emotions" } ];
+    const GEMINI_CONT = [ { id: "gc1", label: "延續：16mm全身", zh: "延續上圖,超廣角人像攝影,16mm鏡頭,全身,透視變形,誇張視角,無影棚", en: "Continuing from the previous image, ultra wide-angle portrait photography, 16mm lens, full body, perspective distortion, exaggerated angle, studio-free" }, { id: "gc2", label: "延續：35mm全身", zh: "延續上圖,廣角人像攝影,35mm鏡頭,全身,自然透視,無影棚", en: "Continuing from the previous image, wide-angle portrait photography, 35mm lens, full body, natural perspective, studio-free" }, { id: "gc3", label: "延續：50mm半身", zh: "延續上圖,標準鏡頭人像攝影,50mm鏡頭,半身,自然視角,真實感,無影棚", en: "Continuing from the previous image, standard lens portrait photography, 50mm lens, half body, natural perspective, realistic feel, studio-free" }, { id: "gc4", label: "延續：85mm特寫", zh: "延續上圖,中焦人像攝影,85mm鏡頭,特寫,背景壓缩,柔焦,無影棚", en: "Continuing from the previous image, medium telephoto portrait photography, 85mm lens, close-up, compressed background, soft focus, studio-free" }, { id: "gc5", label: "延續：200mm大頭", zh: "延續上圖,長焦人像攝影,200mm鏡頭,大頭照,極淺景深,背景虚化,無影棚", en: "Continuing from the previous image, telephoto portrait photography, 200mm lens, headshot, extremely shallow depth of field, blurred background, studio-free" }, { id: "gc6", label: "延續：聚焦表情", zh: "延續上圖,近距離呈現人物表情", en: "Continuing from the previous image, close-up showing character's expression" }, { id: "gc7", label: "延續：聚焦領口", zh: "延續上圖,近距離呈現領口設計", en: "Continuing from the previous image, close-up showing neckline design" }, { id: "gc8", label: "延續：領口與表情", zh: "延續上圖,近距離呈現領口設計與人物表情", en: "Continuing from the previous image, close-up showing neckline design and character's expression" } ];
+
+    function simulateAIGenerate(category) { if (!AI_GEN[category]) return null; const iPre = Math.floor(Math.random() * AI_GEN[category].pre.zh.length); const iCore = Math.floor(Math.random() * AI_GEN[category].core.zh.length); const iSuf = Math.floor(Math.random() * AI_GEN[category].suf.zh.length); return { id: `ai_${category}_${Date.now()}`, label: `✦ AI: ${AI_GEN[category].core.zh[iCore].substring(0,6)}...`, zh: `${AI_GEN[category].pre.zh[iPre]}${AI_GEN[category].core.zh[iCore]}${AI_GEN[category].suf.zh[iSuf]}`, en: `${AI_GEN[category].pre.en[iPre]} ${AI_GEN[category].core.en[iCore]}${AI_GEN[category].suf.en[iSuf]}` }; }
+    function simulateAIExpand(basePrompt, lang) { if (!basePrompt) return ""; const extras_zh = ["呈現極致的電影級光影敘事", "充滿戲劇性的視覺張力", "微距級別的真實皮膚紋理細節", "極度細膩的光線折射與次表面散射"]; const extras_en = ["ultimate cinematic lighting narrative", "dramatic visual tension", "macro-level realistic skin texture details", "extremely delicate light refraction and subsurface scattering"]; const words = lang === "zh" ? extras_zh : extras_en; const sep = lang === "zh" ? "，" : ", "; let added = []; for(let i=0; i<3; i++) { let w = words[Math.floor(Math.random() * words.length)]; if(!basePrompt.includes(w) && !added.includes(w)) added.push(w); if(added.length >= 2) break; } return added.length === 0 ? basePrompt : basePrompt + sep + added.join(sep); }
+    function Btn({children, onClick, disabled, style={}, color}) { return <button onClick={onClick} disabled={disabled} style={{background:`${color}18`,border:`1px solid ${color}`,color:color,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:disabled?"not-allowed":"pointer",fontWeight:700,opacity:disabled?0.5:1,transition:"all 0.2s",...style}}>{children}</button>; }
+    function SelBtn({item, selected, onSelect, color}) { const sel = selected === item.id; return <button onClick={()=>onSelect(item.id)} title={item.en||""} style={{background:sel?`${color}22`:"var(--card)", border:`1px solid ${sel?color:"var(--border)"}`, color:sel?color:"var(--text)", padding:"4px 9px", borderRadius:13, fontSize:11, cursor:"pointer", fontWeight:sel?700:400}}>{sel?"✓ ":""}{item.label}</button>; }
+    function DropSelect({ items, value, onChange, accent, placeholder = "── 請選擇 ──" }) { const selected = items.find(i => i.id === value); return ( <div className="ops-select-wrap"> <select className="ops-select" value={value || ""} onChange={e => onChange(e.target.value || null)} style={{ border: `1px solid ${value ? accent : "var(--border)"}`, color: value ? accent : "var(--text)" }}> <option value="">{placeholder}</option>{items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)} </select> {selected && <div className="ops-selected-badge" style={{ background: `${accent}0f`, border: `1px solid ${accent}25`, color: `${accent}bb` }}>{selected.zh || selected.en || selected.label}</div>} </div> ); }
+    function PromptCard({title, titleColor, content, onExpand, expanding, onActionSend, isCloudMode, isComfyGenerating, C}) {
+      const [tab, setTab] = useState("en"); const [copied, setCopied] = useState(false); const txt = tab === "zh" ? (content ? content.zh : "") : (content ? content.en : "");
+      const handleCopy = () => { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+      return <div style={{background:"var(--promptBg)",border:`1px solid ${titleColor}30`,borderRadius:10,overflow:"hidden",marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderBottom:`1px solid ${titleColor}20`, flexWrap:"wrap", gap:6}}>
+          <span style={{color:titleColor,fontWeight:700,fontSize:12}}>{title}</span>
+          <div style={{display:"flex",gap:5}}>
+            {["en","zh"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"2px 8px",fontSize:11,border:"none",background:tab===t?`${titleColor}22`:"transparent",color:tab===t?titleColor:"var(--subtext)",cursor:"pointer",borderRadius:4,fontWeight:tab===t?700:400}}>{t.toUpperCase()}</button>)}
+            {onExpand&&<Btn onClick={()=>onExpand(tab)} disabled={expanding} color={C.cyan} style={{padding:"2px 8px",fontSize:11}}>{expanding?"⟳ 擴寫...":"✦ AI智能擴寫"}</Btn>}
+            {onActionSend && <Btn onClick={() => onActionSend(txt, tab)} disabled={isComfyGenerating} color={isCloudMode ? C.cloud : C.green} style={{padding:"2px 8px",fontSize:11, background: isCloudMode ? `${C.cloud}26` : `${C.green}26`}}>{isComfyGenerating ? "⏳ 算圖中..." : (isCloudMode ? `☁️ 雲端 Imagen 算圖` : `🚀 送至 ComfyUI`)}</Btn>}
+            <Btn onClick={handleCopy} color={copied ? C.green : titleColor} style={{padding:"2px 8px",fontSize:11}}>{copied ? "✓ 已複製" : "⎘ 複製"}</Btn>
+          </div>
+        </div>
+        <div style={{padding:"10px 12px",fontSize:13,fontFamily:"monospace",lineHeight:1.7,color:"var(--text)",maxHeight:160,overflowY:"auto",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{txt}</div>
+      </div>;
+    }
+    function CopyAll({prompts, selChars, mergedChars, title, C}) {
+      const [copied,setCopied]=useState("");
+      const copy = lang => { const z = lang === "zh"; let parts = [`=== ${title} ===`, `\n[${z?"正向":"Positive"}]\n${z ? prompts.pos.zh : prompts.pos.en}`, `\n[${z?"負向":"Negative"}]\n${z ? prompts.neg.zh : prompts.neg.en}`]; selChars.forEach(charId => { const p = prompts[charId]; if (p && (z ? p.zh : p.en)) { parts.push(`\n[${mergedChars[charId]?.name || charId}]\n${z ? p.zh : p.en}`); } }); navigator.clipboard.writeText(parts.filter(Boolean).join("\n")); setCopied(lang); setTimeout(()=>setCopied(""),2500); };
+      return <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:10,flexWrap:"wrap"}}><Btn onClick={()=>copy("zh")} color={copied==="zh"?C.green:C.pink}>{copied==="zh"?"✓ 已複製全部中文":"⎘ 複製全部中文"}</Btn><Btn onClick={()=>copy("en")} color={copied==="en"?C.green:C.cyan}>{copied==="en"?"✓ Copied All EN":"⎘ 複製全部英文"}</Btn></div>;
+    }
+    function Sec({title, children, aiCategory, onAIGenerate, onCustomAdd, accentColor, actionNode, onClear, containerStyle}) {
+      const [val, setVal] = useState(""); const handleAdd = () => { if(val.trim()) { onCustomAdd(aiCategory, val.trim()); setVal(""); } };
+      return <div style={{background:"var(--card)",border:`1px solid var(--border)`,borderRadius:9,padding:"11px 13px",marginBottom:8, ...containerStyle}}>
+        <div style={{display:"flex",justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8}}>
+          <div style={{fontSize:11,color:accentColor,letterSpacing:2,fontWeight:700,textTransform:"uppercase"}}>{title}</div>
+          <div style={{display:"flex", gap:6, alignItems:"center"}}>
+            {onCustomAdd && aiCategory && ( <div style={{display:"flex", background:"var(--inputBg)", borderRadius:4, border:`1px solid ${accentColor}55`, overflow:"hidden"}}><input type="text" value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e => e.key==='Enter' && handleAdd()} placeholder="自訂..." style={{background:"transparent", border:"none", color:"var(--text)", fontSize:10, padding:"4px 8px", width:70, outline:"none"}} /><button onClick={handleAdd} style={{background:accentColor, color:"#000", border:"none", padding:"0 8px", fontSize:12, cursor:"pointer", fontWeight:"bold"}}>+</button></div> )}
+            {aiCategory && <button onClick={()=>onAIGenerate(aiCategory)} style={{background:"transparent",border:`1px solid ${accentColor}`,color:accentColor,padding:"3px 8px",borderRadius:4,fontSize:10,cursor:"pointer",opacity:0.8, fontWeight:"bold"}}>✦ AI盲盒</button>}
+            {onClear && <button onClick={onClear} style={{background:"transparent",border:`1px solid var(--subtext)`,color:"var(--text)",padding:"3px 8px",borderRadius:4,fontSize:10,cursor:"pointer"}}>✕ 清空此區</button>}
+            {actionNode}
+          </div>
+        </div>{children}</div>;
+    }
+// ================== 第一部分結束 ==================
+// ================== 第二部分開始 ==================
+    function App() {
+      const [theme, setTheme] = useState(() => localStorage.getItem("ops_theme") || "dark");
+      useEffect(() => {
+        localStorage.setItem("ops_theme", theme); const t = THEMES[theme] || THEMES.dark;
+        document.documentElement.style.setProperty('--bg', t.bg); document.documentElement.style.setProperty('--card', t.card);
+        document.documentElement.style.setProperty('--border', t.border); document.documentElement.style.setProperty('--text', t.text);
+        document.documentElement.style.setProperty('--subtext', t.subtext); document.documentElement.style.setProperty('--inputBg', t.inputBg);
+        document.documentElement.style.setProperty('--promptBg', t.promptBg);
+      }, [theme]);
+
+      const C = { bg:"var(--bg)", card:"var(--card)", border:"var(--border)", ...(THEMES[theme] || THEMES.dark).palette };
+
+      const [customChars, setCustomChars] = useState(() => JSON.parse(localStorage.getItem("ops_custom_chars") || "{}"));
+      const [showCharForm, setShowCharForm] = useState(false); const [newChar, setNewChar] = useState({ id: "", name: "", color: "#ffb703", zh: "", en: "" });
+      const mergedChars = { ...BASE_CHARS, ...customChars };
+
+      const [isCloudMode, setIsCloudMode] = useState(true); const [useHardcoreTags, setUseHardcoreTags] = useState(true);
+      const [comfyUrl, setComfyUrl] = useState(() => localStorage.getItem("ops_comfy_url") || "http://127.0.0.1:8188");
+      const [cloudApiKey, setCloudApiKey] = useState(() => localStorage.getItem("ops_cloud_api_key") || "");
+
+      const [isComfyGenerating, setIsComfyGenerating] = useState(false); const [comfyProgress, setComfyProgress] = useState(0);
+      const [comfyImages, setComfyImages] = useState([]); const comfyGalleryRef = useRef(null); 
+
+      const [customDB, setCustomDB] = useState({ fabric:[], bottom:[], pose:[], scene:[], makeup:[], acc:[], light:[] });
+      const [customExpr, setCustomExpr] = useState([]); const [customComp, setCustomComp] = useState([]);
+      const [selF,setSelF]=useState(null); const [selB,setSelB]=useState(null); const [selL,setSelL]=useState(null); const [selM,setSelM]=useState(null); 
+      const [selP,setSelP]=useState(null); const [selS,setSelS]=useState(null); const [selExpr,setSelExpr]=useState(null); 
+      const [selA,setSelA]=useState([]); const [selBra,setSelBra]=useState([]); const [selEmotion,setSelEmotion]=useState([]);
+      const [selOutfitStyle,setSelOutfitStyle]=useState(null);
+      const [selHairStyle,setSelHairStyle]=useState(null); const [selHairColor,setSelHairColor]=useState(null); 
+      
+      const [selChars,setSelChars]=useState(() => Object.keys(BASE_CHARS).length > 0 ? [Object.keys(BASE_CHARS)[0]] : []);
+      const [lightContrast, setLightContrast] = useState(50);
+
+      const [refOutfit, setRefOutfit] = useState(false); const [refPose, setRefPose] = useState(false); 
+      const [refScene, setRefScene] = useState(false); const [refCharacter, setRefCharacter] = useState(false);
+
+      const [selGeminiBase, setSelGeminiBase] = useState([]); const [selGeminiLens, setSelGeminiLens] = useState(null); const [selGeminiCont, setSelGeminiCont] = useState(null);
+      const [selRefPrefix,setSelRefPrefix] = useState(null); const [selRefCore,setSelRefCore] = useState(null); const [selRefSuffix,setSelRefSuffix] = useState(null); 
+      const [selRatio,setSelRatio] = useState(null); const [selPersonSize,setSelPersonSize] = useState(null); const [selCompRule,setSelCompRule] = useState(null); const [selCompBg,setSelCompBg] = useState(null);
+
+      const [result,setResult]=useState(null); const [prompts,setPrompts]=useState({pos:{zh:"",en:""},neg:{zh:"",en:""}});
+      const [loading,setLoading]=useState(false); const [expandingState,setExpandingState]=useState({});
+
+      const allF = [...FABRIC_DB, ...customDB.fabric]; const allB = [...BOTTOM_DB, ...customDB.bottom];
+      const allP = [...POSE_DB, ...customDB.pose]; const allM = [...MAKEUP_DB, ...customDB.makeup];
+      const allL = [...LIGHT_DB, ...customDB.light]; const allA = [...ACC_DB, ...customDB.acc];
+      const allEmotion = [...EMOTION_DB]; 
+      const sceneList = [...SCENE_DB.map((s,i) => { const parts = s.split(" — "); return { id: `s${i}`, label: parts[0], zh: parts[0], en: parts[1] || parts[0] }; }), ...customDB.scene];
+      const allExpr = [...DIRECTION_DB.expression, ...customExpr]; const allCompRule = [...DIRECTION_DB.comp_rule, ...customComp];
+      const pick = arr => (arr && arr.length > 0) ? arr[Math.floor(Math.random() * arr.length)] : null;
+
+      const clearGeminiSection = () => {
+        setRefOutfit(false); setRefPose(false); setRefScene(false); setRefCharacter(false);
+        setSelRefPrefix(null); setSelRefCore(null); setSelRefSuffix(null); setSelRatio(null); setSelPersonSize(null); setSelCompRule(null); setSelCompBg(null);
+        setSelGeminiBase([]); setSelGeminiLens(null); setSelGeminiCont(null);
+      };
+
+      const clearAll = () => {
+        setSelF(null); setSelB(null); setSelL(null); setSelP(null); setSelM(null); setSelS(null); setSelExpr(null);
+        setSelA([]); setSelBra([]); setSelEmotion([]); setSelOutfitStyle(null); setSelHairStyle(null); setSelHairColor(null);
+        setLightContrast(50); clearGeminiSection(); setResult(null); setPrompts({pos:{zh:"",en:""},neg:{zh:"",en:""}});
+      };
+
+      const handleCloudGenerate = async (posText) => {
+        if (!cloudApiKey) return alert("請先填寫您的 Google AI Studio API Key！");
+        setIsComfyGenerating(true); setComfyProgress(50); setComfyImages([]);
+        try {
+            let aspect = "1:1";
+            if (posText.includes("9:16") || posText.includes("豎版")) aspect = "9:16";
+            else if (posText.includes("16:9") || posText.includes("橫版")) aspect = "16:9";
+            else if (posText.includes("3:4") || posText.includes("4:5")) aspect = "3:4";
+            else if (posText.includes("4:3")) aspect = "4:3";
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${cloudApiKey}`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ instances: [{ prompt: posText }], parameters: { sampleCount: 1, aspectRatio: aspect, personGeneration: "ALLOW_ADULT" } })
+            });
+
+            if (!response.ok) { const errData = await response.json(); throw new Error(errData.error?.message || "API 請求失敗"); }
+            const data = await response.json();
+            if (data.predictions && data.predictions.length > 0) {
+                setComfyImages([`data:image/jpeg;base64,${data.predictions[0].bytesBase64Encoded}`]); setComfyProgress(100);
+                setTimeout(() => { if (comfyGalleryRef.current) comfyGalleryRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }, 300);
+            } else { throw new Error("未回傳圖片，可能觸發安全機制。"); }
+        } catch (e) { alert("❌ 雲端算圖失敗：" + e.message); setComfyProgress(0); } finally { setIsComfyGenerating(false); }
+      };
+
+      const fetchOutputImages = async (promptId) => {
+        setComfyProgress(100);
+        try {
+            const res = await fetch(`${comfyUrl}/history/${promptId}`); const history = await res.json();
+            const outputs = history[promptId]?.outputs; if (!outputs) throw new Error("無輸出資料");
+            const newImages = [];
+            for (const nodeId in outputs) {
+                if (outputs[nodeId].images) {
+                    for (const img of outputs[nodeId].images) newImages.push(`${comfyUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder)}&type=${img.type}`);
+                }
+            }
+            setComfyImages(newImages); setTimeout(() => { if (comfyGalleryRef.current) comfyGalleryRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }, 300);
+        } catch (e) { alert("⚠️ 算圖完成，但抓取圖片錯誤。"); } finally { setIsComfyGenerating(false); }
+      };
+
+      const handleComfySend = async (posText, negText) => {
+        if (!comfyUrl) return alert("請先填寫 ComfyUI API 網址！");
+        setIsComfyGenerating(true); setComfyProgress(0); setComfyImages([]);
+        let ws;
+        try {
+            const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
+            workflow["6"].inputs.text = posText; workflow["7"].inputs.text = negText;
+            workflow["3"].inputs.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER); workflow["38"].inputs.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+            const clientId = Math.random().toString(36).substring(2, 15); 
+            try { ws = new WebSocket(comfyUrl.replace("http://", "ws://").replace("https://", "wss://") + "/ws?clientId=" + clientId); } catch(e) {}
+            
+            const response = await fetch(`${comfyUrl}/prompt`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: workflow, client_id: clientId }) });
+            if (!response.ok) throw new Error(`伺服器回應錯誤`);
+            const json = await response.json(); const promptId = json.prompt_id; localStorage.setItem("ops_comfy_url", comfyUrl);
+            
+            if (ws) {
+                ws.onmessage = async (event) => {
+                    if (typeof event.data === "string") {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'progress') setComfyProgress(Math.round((data.data.value / data.data.max) * 100));
+                        if (data.type === 'executing' && data.data.node === null && data.data.prompt_id === promptId) { ws.close(); fetchOutputImages(promptId); }
+                    }
+                };
+            } else { alert("⚠️ WebSocket 連線失敗，無法即時追蹤進度，但已送出算圖請求。"); setIsComfyGenerating(false); }
+        } catch (err) { setIsComfyGenerating(false); alert(`❌ 發送失敗！\n系統錯誤: ${err.message}`); if (ws) ws.close(); }
+      };
+
+      const handleAddCustomChar = () => {
+        if (!newChar.id || !newChar.name) return alert("請填寫角色 ID 和顯示名稱！");
+        const id = newChar.id.trim().toLowerCase();
+        const updated = { ...customChars, [id]: { name: newChar.name, color: newChar.color, zh: newChar.zh, en: newChar.en } };
+        setCustomChars(updated); localStorage.setItem("ops_custom_chars", JSON.stringify(updated));
+        setSelChars(p => p.includes(id) ? p : [...p, id]); setShowCharForm(false); setNewChar({ id: "", name: "", color: "#ffb703", zh: "", en: "" });
+      };
+      const handleRemoveCustomChar = (e, id) => {
+        e.stopPropagation();
+        if(window.confirm("確定要刪除此自訂角色嗎？")) { const updated = {...customChars}; delete updated[id]; setCustomChars(updated); localStorage.setItem("ops_custom_chars", JSON.stringify(updated)); setSelChars(p => p.filter(k => k !== id)); }
+      };
+      const handleAIGenerate = (cat) => {
+        const newItem = simulateAIGenerate(cat); if(!newItem) return;
+        if (cat === 'expr') { setCustomExpr(p => [...p, newItem]); setSelExpr(newItem.id); return; }
+        if (cat === 'comp') { setCustomComp(p => [...p, newItem]); setSelCompRule(newItem.id); return; }
+        setCustomDB(prev => ({ ...prev, [cat]: [...prev[cat], newItem] }));
+        if (cat === 'fabric') setSelF(newItem.id); if (cat === 'bottom') setSelB(newItem.id);
+        if (cat === 'pose') setSelP(newItem.id); if (cat === 'scene') setSelS(newItem.id);
+        if (cat === 'makeup') setSelM(newItem.id); if (cat === 'light') setSelL(newItem.id);
+        if (cat === 'acc') setSelA(p => [...p, newItem.id]);
+      };
+      const handleCustomAdd = (cat, keyword) => {
+        const newItem = { id: `custom_${cat}_${Date.now()}`, label: `★ ${keyword}`, zh: `獨特的${keyword}`, en: `unique ${keyword}` };
+        if (cat === 'expr') { setCustomExpr(p => [...p, newItem]); setSelExpr(newItem.id); return; }
+        if (cat === 'comp') { setCustomComp(p => [...p, newItem]); setSelCompRule(newItem.id); return; }
+        setCustomDB(prev => ({ ...prev, [cat]: [...prev[cat], newItem] }));
+        if (cat === 'fabric') setSelF(newItem.id); if (cat === 'bottom') setSelB(newItem.id);
+        if (cat === 'pose') setSelP(newItem.id); if (cat === 'scene') setSelS(newItem.id);
+        if (cat === 'makeup') setSelM(newItem.id); if (cat === 'light') setSelL(newItem.id);
+        if (cat === 'acc') setSelA(p => [...p, newItem.id]);
+      };
+
+      const drawRandomTensions = () => setSelBra([...BRA_DB].sort(() => 0.5 - Math.random()).slice(0, 5).map(item => `bra${BRA_DB.indexOf(item)}`));
+      const handleExpand = (type, lang) => { const key = `${type}_${lang}`; setExpandingState(prev => ({...prev, [key]: true})); setTimeout(() => { setPrompts(prev => ({ ...prev, [type]: { ...prev[type], [lang]: simulateAIExpand(prev[type][lang], lang) } })); setExpandingState(prev => ({...prev, [key]: false})); }, 600); };
+
+      const gen = async () => {
+        const f = allF.find(x=>x.id===selF) || null; const b = allB.find(x=>x.id===selB) || null; const l = allL.find(x=>x.id===selL) || null;
+        const p = allP.find(x=>x.id===selP) || null; const m = allM.find(x=>x.id===selM) || null;
+        const braResolved = selBra.length > 0 ? selBra.map(id => BRA_DB[parseInt(id.replace("bra",""))]).filter(Boolean) : [];
+        let aItems = allA.filter(a => selA.includes(a.id));
+        const accZH = aItems.length > 0 ? aItems.map(a => a.zh || a.label).join("、") : "";
+        const accEN = aItems.length > 0 ? aItems.map(a => a.en).join(", ") : "";
+
+        const coreDNA_EN = isCloudMode ? "1girl, solo, beautiful Asian woman, ultra-realistic photography, raw photo, highly detailed natural skin texture, masterpiece" : "sks_salon, sks_je, 1girl, solo, IPD 1:1, narrow face, ultra-realistic photography, raw photo, highly detailed natural skin texture";
+        const coreDNA_ZH = isCloudMode ? "單人女孩，獨自，極致寫實攝影，原始照片，極高細節自然真實皮膚紋理，大師之作" : "sks_salon, sks_je, 單人女孩, 獨自, IPD 1:1, 窄臉, 極致寫實攝影, 原始照片, 極高細節自然真實皮膚紋理";
+        const motion_EN = "High-density natural motion, cinematic narrative lighting, depth of field";
+        const motion_ZH = "高密度自然動作，電影級光影敘事，景深";
+
+        let chunksZH = []; let chunksEN = [];
+
+        if (refOutfit) { chunksZH.push("[依照服裝參考圖:]"); chunksEN.push("[Based on outfit reference:]"); }
+        if (refPose) { chunksZH.push("[依照參考圖:精準模仿相同姿勢]"); chunksEN.push("[Based on reference: exactly imitate same pose]"); }
+        if (refScene) { chunksZH.push("[依照參考圖場景:讓人物在場景中生成]"); chunksEN.push("[Based on scene reference: generate character in scene]"); }
+        if (refCharacter) { chunksZH.push("[讓參考圖的人物融入提示詞生成出對應的圖片]"); chunksEN.push("[Integrate the reference image character into the prompt to generate the corresponding image]"); }
+
+        if (selGeminiCont) { const cont = GEMINI_CONT.find(x=>x.id===selGeminiCont); if(cont) { chunksZH.push(`[${cont.zh}]`); chunksEN.push(`[${cont.en}]`); } }
+
+        const getDirStr = (key, id, lang) => { if (!id) return ""; let list = key==='expression'?allExpr:key==='comp_rule'?allCompRule:DIRECTION_DB[key]; const d = list ? list.find(x => x.id === id) : null; return (d && d[lang]) ? d[lang].replace(/[，,]$/, '') : ""; };
+        [selRefPrefix, selRefCore, selRefSuffix, selRatio, selPersonSize, selExpr, selCompRule, selCompBg].forEach(id => {
+            const z = getDirStr("ref_prefix", id, "zh") || getDirStr("ref_core", id, "zh") || getDirStr("ref_suffix", id, "zh") || getDirStr("ratio", id, "zh") || getDirStr("person_size", id, "zh") || getDirStr("expression", id, "zh") || getDirStr("comp_rule", id, "zh") || getDirStr("comp_bg", id, "zh");
+            const e = getDirStr("ref_prefix", id, "en") || getDirStr("ref_core", id, "en") || getDirStr("ref_suffix", id, "en") || getDirStr("ratio", id, "en") || getDirStr("person_size", id, "en") || getDirStr("expression", id, "en") || getDirStr("comp_rule", id, "en") || getDirStr("comp_bg", id, "en");
+            if (z) chunksZH.push(z); if (e) chunksEN.push(e);
+        });
+
+        if (selGeminiBase.length > 0) {
+            const basesZH = selGeminiBase.map(id => GEMINI_BASE.find(x=>x.id===id).zh).join("，");
+            const basesEN = selGeminiBase.map(id => GEMINI_BASE.find(x=>x.id===id).en).join(", ");
+            chunksZH.push(basesZH); chunksEN.push(basesEN);
+        }
+        if (selGeminiLens) { const lens = GEMINI_LENS.find(x=>x.id===selGeminiLens); if(lens) { chunksZH.push(lens.zh); chunksEN.push(lens.en); } }
+
+        chunksZH.push(coreDNA_ZH); chunksEN.push(coreDNA_EN);
+        if (m) { chunksZH.push(`[妝容: ${m.zh || m.label}]`); chunksEN.push(`[makeup: ${m.en}]`); }
+        if (selHairStyle) { const hs = HAIR_DB.find(x=>x.id===selHairStyle); chunksZH.push(`[髮型設計: ${hs.zh}]`); chunksEN.push(`[hair design: ${hs.en}]`); }
+        if (selHairColor) { const hc = HAIR_DB.find(x=>x.id===selHairColor); chunksZH.push(`[髮色渲染: ${hc.zh}]`); chunksEN.push(`[hair color: ${hc.en}]`); }
+        if (f) { chunksZH.push(`穿著 ${f.zh || f.label}`); chunksEN.push(`wearing ${f.en}`); }
+        if (b) { chunksZH.push(`搭配 ${b.zh || b.label}`); chunksEN.push(`with ${b.en}`); }
+        if (accZH) { chunksZH.push(`[飾品: ${accZH}]`); } if (accEN) { chunksEN.push(`[accessories: ${accEN}]`); }
+
+        if (braResolved.length > 0) {
+          if (isCloudMode) {
+            chunksEN.push("extremely tight form-fitting silhouette, the solid opaque fabric is stretched so taut that the faint 3D embossed outline and ridges of a hidden structural undergarment are visibly pressing through the material, creating subtle contour micro-shadows on the chest surface, highly detailed clothing physics, absolute zero transparency");
+            chunksZH.push("極致緊身剪裁，不透明的實心布料被極度拉伸，使得隱藏在底層的結構性衣物輪廓與脊線，如3D浮雕般清晰地頂出布面，在胸部表面形成微妙的等高線微陰影，極度寫實的服裝物理，絕對零透視");
+          } else {
+            braResolved.forEach(b => { chunksZH.push(b.zh.split(" — ")[1] || b.zh); chunksEN.push(b.en); });
+            if (useHardcoreTags) {
+                chunksEN.push("(visible bra outline under clothes:1.5), (clothes tight on breasts:1.4), (subtle 3D fabric relief:1.3), (micro-shadows on fabric ridges:1.2), (nipple protruding through clothes:0.4)");
+                chunksZH.push("[已注入: Danbooru底層暴力浮雕高權重標籤]");
+            }
+          }
+        }
+
+        if (p) { chunksZH.push(p.zh || p.label); chunksEN.push(p.en); }
+        if (selS) { const so = sceneList.find(x=>x.id===selS); if(so){ chunksZH.push(`場景在 ${so.zh}`); chunksEN.push(`scene in ${so.en}`); } }
+        if (l) { chunksZH.push(l.zh || l.label); chunksEN.push(l.en); }
+        
+        let contrastTagZH = ""; let contrastTagEN = "";
+        if (lightContrast <= 15) { contrastTagZH = "極柔和夢幻漫射光，影子近乎消失，整體如薄霧包裹般低對比度，魔法般的柔焦光暈"; contrastTagEN = "ultra-soft dreamy diffused light, shadows nearly absent, entire image low-contrast as if wrapped in mist, magical soft-focus halo"; } 
+        else if (lightContrast <= 30) { contrastTagZH = "柔和自然光質，光影過渡細膩圓潤，陰影邊界模糊如水彩暈染，溫柔的低反差美學"; contrastTagEN = "soft natural light quality, silky smooth light-shadow transition, shadow edges blurred like watercolor wash, gentle low-contrast aesthetic"; } 
+        else if (lightContrast <= 45) { contrastTagZH = "均衡自然光影，輕微柔和的明暗層次，肌膚質感細膩不失立體感"; contrastTagEN = "balanced natural lighting, gentle subtle shadow gradients, skin texture refined yet dimensional"; } 
+        else if (lightContrast <= 55) { contrastTagZH = "標準電影級光影平衡，清晰的明暗交界，兼具真實感與戲劇張力"; contrastTagEN = "standard cinematic light balance, clear light-shadow boundary, combining realism with dramatic tension"; } 
+        else if (lightContrast <= 70) { contrastTagZH = "提升對比度，陰影加深且邊緣更銳利，高光區域更明亮，強化立體輪廓感與戲劇性"; contrastTagEN = "enhanced contrast, deeper shadows with sharper edges, brighter highlights, amplified 3D contouring and drama"; } 
+        else if (lightContrast <= 85) { contrastTagZH = "強烈戲劇性高反差光，深邃的黑階陰影與刺眼的高光共存，倫勃朗式的明暗對決，影調震撼"; contrastTagEN = "intense dramatic high contrast, deep black shadows coexisting with piercing highlights, Rembrandt-style chiaroscuro battle, tonally stunning"; } 
+        else { contrastTagZH = "極端地獄級反差，陰影完全吞沒細節形成純黑深淵，高光區如白熾聖光灼燒，超越物理的絕對反差戲劇"; contrastTagEN = "extreme inferno-level contrast, shadows completely devouring detail into pure black abyss, highlights burning like incandescent holy light, absolute contrast beyond physics"; }
+        if (contrastTagZH) { chunksZH.push(contrastTagZH); chunksEN.push(contrastTagEN); }
+
+        const emotionItems = allEmotion.filter(e => selEmotion.includes(e.id));
+        if (emotionItems.length > 0) { chunksZH.push(`[情緒細節: ${emotionItems.map(e => e.zh).join("，")}]`); chunksEN.push(`[emotional detail: ${emotionItems.map(e => e.en).join(", ")}]`); }
+
+        if (selOutfitStyle) { const os = OUTFIT_STYLE_DB.find(o => o.id === selOutfitStyle); if (os) { chunksZH.push(`[完整造型靈感: ${os.zh}]`); chunksEN.push(`[complete outfit inspiration: ${os.en}]`); } }
+        
+        chunksZH.push(motion_ZH); chunksEN.push(motion_EN);
+
+        setLoading(true); setResult(null); setComfyImages([]); setComfyProgress(0);
+        const finalZH = chunksZH.filter(Boolean).join("，"); const finalEN = chunksEN.filter(Boolean).join(", ");
+
+        setTimeout(() => {
+          setResult({ title_zh: f ? f.label : "自定義組合", title_en: "Custom Styling" });
+          const genPrompts = {
+            pos: { zh: finalZH, en: finalEN }, 
+            neg: { 
+              zh: isCloudMode ? "3D, 數位建模, 繪畫, 插畫, 動漫, 模糊, 變形, 不自然的光線, 透明, 薄紗" : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric", 
+              en: isCloudMode ? "3d render, digital modeling, painting, illustration, anime, blurry, deformed, artificial lighting, sheer, transparent, mesh" : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric" 
+            }
+          };
+          if (!isCloudMode) { selChars.forEach(charId => { const ch = mergedChars[charId]; if (ch) genPrompts[charId] = { zh: `[${ch.name}角色設定: ${ch.zh}]，${finalZH}`, en: `[Character ${ch.name}: ${ch.en}], ${finalEN}` }; }); }
+          setPrompts(genPrompts); setLoading(false);
+        }, 150);
+      };
+
+      const randomize = () => {
+        setSelF(pick(allF)?.id||null); setSelB(pick(allB)?.id||null); setSelL(pick(allL)?.id||null); setSelP(pick(allP)?.id||null); setSelM(pick(allM)?.id||null); setSelS(pick(sceneList)?.id||null); setSelExpr(pick(allExpr)?.id || null);
+        const acc1 = pick(allA); const acc2 = pick(allA); if(acc1 && acc2) { setSelA([acc1.id, acc2.id].filter((v,i,a) => a.indexOf(v)===i)); }
+        const styles = HAIR_DB.filter(o => parseInt(o.id.replace("hr","")) <= 90); const colors = HAIR_DB.filter(o => parseInt(o.id.replace("hr","")) >= 91);
+        setSelHairStyle(styles[Math.floor(Math.random()*styles.length)]?.id || null); setSelHairColor(Math.random() > 0.5 ? colors[Math.floor(Math.random()*colors.length)]?.id : null); 
+        drawRandomTensions();
+      };
+
+      return <>
+        <div style={{minHeight:"100vh",background:"var(--bg)",color:"var(--text)",fontFamily:"-apple-system,sans-serif"}}>
+          <div style={{display:"flex", gap: 6, overflowX: "auto", padding: "10px 20px", background: "var(--card)", borderBottom: "1px solid var(--border)"}}>
+              {Object.entries(THEMES).map(([k, t]) => (
+                  <button key={k} onClick={()=>setTheme(k)} style={{ padding: "6px 12px", borderRadius: 20, background: theme===k ? t.border : "var(--inputBg)", color: theme===k ? (k==='light'?"#000":"#fff") : "var(--text)", border: `1px solid ${t.border}`, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap", fontWeight: theme===k ? "bold" : "normal" }}>{t.name}</button>
+              ))}
+          </div>
+
+          <div style={{background:`linear-gradient(90deg, ${C.orange}1A 0%, ${C.cyan}0D 100%)`,borderBottom:"1px solid var(--border)",padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
+            <div>
+              <div style={{color:C.orange,fontWeight:900,fontSize:15,letterSpacing:4}}>◈ OUTFIT PROMPT SYSTEM <span style={{color:C.cyan}}>MODULAR</span></div>
+              <div style={{fontSize:10,color:"var(--subtext)",letterSpacing:1.5}}>V9.9 終極軍規防護版</div>
+            </div>
+            <div style={{display:"flex", gap:8}}>
+              <Btn onClick={clearAll} color={C.red} style={{background:"transparent"}}>✕ 清空全部</Btn>
+              <Btn onClick={randomize} color="var(--subtext)">⟳ 隨機組合</Btn>
+            </div>
+          </div>
+
+          <div style={{maxWidth:1100,margin:"0 auto",padding:"16px 16px"}}>
+            <div style={{display:"flex", borderRadius:10, overflow:"hidden", marginBottom:8, border:`1px solid ${isCloudMode?C.cloud:C.orange}`}}>
+              <button style={{flex: 1, padding: 12, fontSize: 14, fontWeight: "bold", cursor: "pointer", border: "none", transition: "all 0.2s", background:isCloudMode?`${C.cloud}33`:"var(--card)", color:isCloudMode?C.cloud:"var(--subtext)"}} onClick={()=>setIsCloudMode(true)}>☁️ 在線平台安全模式 (Gemini Imagen 3) <br/><span style={{fontSize:10, fontWeight:"normal", opacity:0.8}}>自動掛載隱性浮雕微陰影咒語，逼出物理張力且防客訴</span></button>
+              <button style={{flex: 1, padding: 12, fontSize: 14, fontWeight: "bold", cursor: "pointer", border: "none", transition: "all 0.2s", background:!isCloudMode?`${C.orange}33`:"var(--card)", color:!isCloudMode?C.orange:"var(--subtext)"}} onClick={()=>setIsCloudMode(false)}>💻 本地算力模式 (RTX 5090 / ComfyUI) <br/><span style={{fontSize:10, fontWeight:"normal", opacity:0.8}}>解鎖極限物理張力、專屬人物 LoRA 與 API 直連算圖</span></button>
+            </div>
+
+            {isCloudMode ? (
+              <div style={{marginBottom: 16, padding: "12px", background: `${C.cloud}1A`, border: `1px dashed ${C.cloud}`, borderRadius: 6, display: "flex", flexDirection: "column", gap: 10}}>
+                <div style={{fontSize: 11, color: C.cloud, display: "flex", alignItems: "center", gap: 8, fontWeight:"bold"}}>
+                  ☁️ 直接在線調用 Google Imagen 3 官方頂級生圖引擎 (無須跳轉)
+                </div>
+                <div style={{fontSize: 12, color: C.cyan, display: "flex", alignItems: "center", gap: 8, background: `${C.cyan}14`, padding: "8px 12px", borderRadius: "6px", border: `1px solid ${C.cyan}4D`}}>
+                  <label style={{fontWeight: "bold"}}>🔑 Google API Key:</label>
+                  <input type="password" value={cloudApiKey} onChange={e=>{setCloudApiKey(e.target.value); localStorage.setItem("ops_cloud_api_key", e.target.value);}} style={{background: "var(--bg)", border: `1px solid var(--border)`, color: "var(--text)", padding: "4px 8px", borderRadius: 4, width: "300px"}} placeholder="AIzaSy..." />
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:C.cloud, fontSize:11, textDecoration:"underline", marginLeft:"auto"}}>👉 免費申請金鑰</a>
+                </div>
+              </div>
+            ) : (
+              <div style={{marginBottom: 16, padding: "12px", background: `${C.orange}1A`, border: `1px dashed ${C.orange}`, borderRadius: 6, display: "flex", flexDirection: "column", gap: 10}}>
+                <div style={{fontSize: 11, color: C.orange, display: "flex", alignItems: "center", gap: 8}}>
+                  <input type="checkbox" checked={useHardcoreTags} onChange={e=>setUseHardcoreTags(e.target.checked)} style={{accentColor: C.orange, cursor: "pointer"}} id="hardcore-toggle" />
+                  <label style={{cursor: "pointer", fontWeight: "bold"}} htmlFor="hardcore-toggle">🔥 啟用 Danbooru 底層暴力標籤 (強制突破大模型平滑限制，注入 1.5 高權重內衣浮雕與張力破壞參數)</label>
+                </div>
+                <div style={{fontSize: 12, color: C.cyan, display: "flex", alignItems: "center", gap: 8, background: `${C.cyan}14`, padding: "8px 12px", borderRadius: "6px", border: `1px solid ${C.cyan}4D`}}>
+                  <label style={{fontWeight: "bold"}}>🔌 ComfyUI API 位置:</label>
+                  <input type="text" value={comfyUrl} onChange={e=>setComfyUrl(e.target.value)} style={{background: "var(--bg)", border: `1px solid var(--border)`, color: "var(--text)", padding: "4px 8px", borderRadius: 4, width: "250px"}} placeholder="http://127.0.0.1:8188" />
+                </div>
+              </div>
+            )}
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              {/* === 左側欄位 === */}
+              <div style={{display: "flex", flexDirection: "column"}}>
+                <Sec title="① 服裝材質 FABRIC" aiCategory="fabric" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.orange} onClear={()=>setSelF(null)}><DropSelect items={allF} value={selF} onChange={setSelF} accent={C.orange} /></Sec>
+                <Sec title="② 下裝 BOTTOM" aiCategory="bottom" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.orange} onClear={()=>setSelB(null)}><DropSelect items={allB} value={selB} onChange={setSelB} accent={C.orange} /></Sec>
+                <Sec title="③ 姿勢角度 POSE" aiCategory="pose" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.cyan} onClear={()=>setSelP(null)}><DropSelect items={allP} value={selP} onChange={setSelP} accent={C.cyan} /></Sec>
+                <Sec title="④ 妝容核心 MAKEUP" aiCategory="makeup" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.rose} onClear={()=>setSelM(null)}><DropSelect items={allM} value={selM} onChange={setSelM} accent={C.rose} /></Sec>
+                <Sec title="⑤ 表情核心 EXPRESSION" aiCategory="expr" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.pink} onClear={()=>{setSelExpr(null);setSelEmotion([]);}}>
+                  <DropSelect items={allExpr} value={selExpr} onChange={setSelExpr} accent={C.pink} />
+                  <div style={{marginTop:10, padding:"10px 12px", background:`${C.pink}0A`, border:`1px solid ${C.pink}2E`, borderRadius:8}}>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6}}>
+                      <span style={{fontSize:10, color:C.pink, fontWeight:700, letterSpacing:1}}>✦ 深度情緒細節 (可多選)</span>
+                      <div style={{display:"flex", gap:5, alignItems:"center"}}>
+                        {selEmotion.length>0&&<span style={{fontSize:9,color:`${C.pink}B3`,background:`${C.pink}1F`,padding:"1px 7px",borderRadius:8}}>已選 {selEmotion.length}</span>}
+                        <button onClick={()=>{const s=[...allEmotion].sort(()=>0.5-Math.random());setSelEmotion(s.slice(0,3).map(e=>e.id));}} style={{background:"transparent",border:`1px solid ${C.pink}`,color:C.pink,padding:"2px 7px",borderRadius:4,fontSize:9,cursor:"pointer",fontWeight:700}}>✦ 抽3</button>
+                      </div>
+                    </div>
+                    {(()=>{
+                      const groups=[ {key:"eye",label:"👁 眼神",ids:["em1","em2","em3","em4","em5","em6","em7","em8","em9","em10","em11","em12","em13","em14","em15","em16","em17","em18","em19","em20"]}, {key:"lip",label:"👄 唇部",ids:["em21","em22","em23","em24","em25","em26","em27","em28","em29","em30","em31","em32","em33","em34","em35"]}, {key:"face",label:"✨ 微表情",ids:["em36","em37","em38","em39","em40","em41","em42","em43","em44","em45","em46","em47","em48","em49","em50"]}, {key:"atm",label:"🌙 氛圍",ids:["em66","em67","em68","em69","em70","em71","em72","em73","em74","em75","em76","em77","em78","em79","em80"]} ];
+                      const [ag, setAg] = React.useState("eye"); const cur = groups.find(g=>g.key===ag)||groups[0]; const visible = allEmotion.filter(e=>cur.ids.includes(e.id));
+                      return <>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:7}}>
+                          {groups.map(g=>{ const cnt = g.ids.filter(id=>selEmotion.includes(id)).length; return <button key={g.key} onClick={()=>setAg(g.key)} style={{ padding:"2px 8px",borderRadius:9,fontSize:10,cursor:"pointer",fontWeight:700, background:ag===g.key?`${C.pink}40`:cnt>0?`${C.pink}14`:"transparent", border:`1px solid ${ag===g.key?C.pink:cnt>0?`${C.pink}59`:"var(--border)"}`, color:ag===g.key?C.pink:cnt>0?`${C.pink}BF`:"var(--text)" }}>{g.label}{cnt>0?` ·${cnt}`:""}</button>; })}
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:3,maxHeight:130,overflowY:"auto",paddingRight:2}}>
+                          {visible.map(item=>{ const on=selEmotion.includes(item.id); return <button key={item.id} onClick={()=>setSelEmotion(p=>on?p.filter(k=>k!==item.id):[...p,item.id])} title={item.en} style={{ background:on?`${C.pink}33`:"var(--card)", border:`1px solid ${on?C.pink:"var(--border)"}`, color:on?C.pink:"var(--text)", padding:"4px 9px",borderRadius:13,fontSize:11,cursor:"pointer",fontWeight:on?700:400,transition:"all 0.1s" }}>{item.label}</button>; })}
+                        </div>
+                      </>;
+                    })()}
+                  </div>
+                </Sec>
+
+                <Sec title={`⑥ 角色綁定 ${isCloudMode?"(雲端模式已停用)":""}`} accentColor="var(--subtext)" onClear={()=>setSelChars([])} containerStyle={{marginBottom: 0}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6, opacity:isCloudMode?0.3:1, pointerEvents:isCloudMode?"none":"auto"}}>
+                    {Object.entries(mergedChars).map(([key,ch])=>(
+                        <div key={key} style={{position:"relative", flex:"1 1 calc(33% - 6px)", minWidth:100}}>
+                            <button onClick={()=>setSelChars(p=>p.includes(key)?p.filter(k=>k!==key):[...p,key])} style={{width:"100%", padding:"9px", background:selChars.includes(key)?`${ch.color}22`:"var(--card)", border:`2px solid ${selChars.includes(key)?ch.color:"var(--border)"}`, borderRadius:8, color:selChars.includes(key)?ch.color:"var(--text)", cursor:"pointer", fontSize:13, fontWeight:700}}>{selChars.includes(key)?"✓ ":""}{ch.name}</button>
+                            {customChars[key] && ( <span onClick={(e)=>handleRemoveCustomChar(e, key)} style={{position:"absolute", top:-5, right:-5, background:C.red, color:"#fff", width:18, height:18, borderRadius:"50%", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer"}}>✕</span> )}
+                        </div>
+                    ))}
+                    <button onClick={()=>setShowCharForm(!showCharForm)} style={{flex:"1 1 100%", padding:"8px", background:"transparent", border:`1px dashed var(--subtext)`, borderRadius:8, color:"var(--text)", cursor:"pointer", fontSize:12, marginTop:4}}>
+                      {showCharForm ? "▲ 收起面板" : "＋ 新增角色"}
+                    </button>
+                  </div>
+                  {showCharForm && (
+                    <div style={{marginTop: 10, padding: 12, background: "var(--inputBg)", border: `1px solid var(--border)`, borderRadius: 8}}>
+                       <div style={{display:"flex", gap:8, marginBottom:8}}>
+                           <input placeholder="ID (如: amy)" value={newChar.id} onChange={e=>setNewChar({...newChar, id: e.target.value})} style={{flex:1, background:"var(--card)", border:`1px solid var(--border)`, color:"var(--text)", padding:"6px", borderRadius:4, outline:"none"}}/>
+                           <input placeholder="顯示名稱" value={newChar.name} onChange={e=>setNewChar({...newChar, name: e.target.value})} style={{flex:1, background:"var(--card)", border:`1px solid var(--border)`, color:"var(--text)", padding:"6px", borderRadius:4, outline:"none"}}/>
+                           <input type="color" value={newChar.color} onChange={e=>setNewChar({...newChar, color: e.target.value})} style={{width:35, height:30, padding:0, border:"none", background:"transparent", cursor:"pointer"}} title="代表色"/>
+                       </div>
+                       <textarea placeholder="英文設定" value={newChar.en} onChange={e=>setNewChar({...newChar, en: e.target.value})} style={{width:"100%", marginBottom:8, background:"var(--card)", border:`1px solid var(--border)`, color:"var(--text)", padding:"6px", borderRadius:4, minHeight:50, outline:"none"}}/>
+                       <textarea placeholder="中文設定" value={newChar.zh} onChange={e=>setNewChar({...newChar, zh: e.target.value})} style={{width:"100%", marginBottom:8, background:"var(--card)", border:`1px solid var(--border)`, color:"var(--text)", padding:"6px", borderRadius:4, minHeight:50, outline:"none"}}/>
+                       <button onClick={handleAddCustomChar} style={{width:"100%", padding:"8px", background:C.cyan, color:"#000", border:"none", borderRadius:4, fontWeight:"bold", cursor:"pointer"}}>💾 儲存並加入</button>
+                    </div>
+                  )}
+                </Sec>
+              </div>
+              
+              {/* === 右側欄位 === */}
+              <div style={{display: "flex", flexDirection: "column"}}>
+                <Sec title="⑦ 光線條件 LIGHTING" aiCategory="light" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.yellow} onClear={()=>{setSelL(null); setLightContrast(50);}}>
+                  <DropSelect items={allL} value={selL} onChange={setSelL} accent={C.yellow} />
+                  <div style={{marginTop:10, padding:"10px 12px", background:`${C.yellow}0A`, border:`1px solid ${C.yellow}26`, borderRadius:8}}>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6}}>
+                      <span style={{fontSize:10, color:C.yellow, fontWeight:700, letterSpacing:1.5}}>🎬 光影強度 / 戲劇對比</span>
+                      <span style={{fontSize:9, color:C.yellow, background:`${C.yellow}1A`, padding:"2px 6px", borderRadius:4, fontWeight:700}}>{lightContrast <= 15 ? "☁️ 極柔夢幻" : lightContrast <= 30 ? "🌥 柔和低調" : lightContrast <= 45 ? "🌤 均衡自然" : lightContrast <= 55 ? "⚖️ 電影標準" : lightContrast <= 70 ? "🌩 強化對比" : lightContrast <= 85 ? "⚡ 戲劇高反差" : "🔥 極限暴力光"} ({lightContrast})</span>
+                    </div>
+                    <div style={{display:"flex", alignItems:"center", gap:10}}>
+                      <span style={{fontSize:9, color:"var(--subtext)", whiteSpace:"nowrap"}}>柔和夢幻</span>
+                      <div style={{flex:1, position:"relative"}}><input type="range" min="0" max="100" value={lightContrast} onChange={e => setLightContrast(Number(e.target.value))} style={{width:"100%", cursor:"pointer", appearance:"none", height:4, borderRadius:2, outline:"none", background:`linear-gradient(to right, ${C.cloud}88 0%, ${C.yellow}dd ${lightContrast}%, ${C.yellow}33 ${lightContrast}%, ${C.orange}66 100%)`}} /></div>
+                      <span style={{fontSize:9, color:"var(--subtext)", whiteSpace:"nowrap"}}>戲劇硬光</span>
+                    </div>
+                  </div>
+                </Sec>
+
+                <Sec title="⑧ 場景 SCENE" aiCategory="scene" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.purple} onClear={()=>setSelS(null)}>
+                  <DropSelect items={sceneList} value={selS} onChange={setSelS} accent={C.purple} />
+                </Sec>
+                
+                <div style={{background:"var(--card)", border:`1px solid ${C.purple}40`, borderRadius:9, padding:"11px 13px", marginBottom:8}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6}}>
+                    <div style={{fontSize:11, color:C.purple, letterSpacing:2, fontWeight:700, textTransform:"uppercase"}}>⑨ 飾品配件 ACCESSORIES (多選)</div>
+                    <div style={{display:"flex", gap:5, alignItems:"center"}}>
+                      {selA.length>0&&<span style={{fontSize:9,color:`${C.purple}B3`,background:`${C.purple}1F`,padding:"1px 7px",borderRadius:8}}>已選 {selA.length}</span>}
+                      <button onClick={()=>{const g=ACC_GROUPS[Math.floor(Math.random()*ACC_GROUPS.length)];if(!g)return;const ids=g.ids;const pick=ids[Math.floor(Math.random()*ids.length)];setSelA(p=>p.includes(pick)?p:[...p,pick]);}} style={{background:"transparent",border:`1px solid ${C.purple}`,color:C.purple,padding:"2px 7px",borderRadius:4,fontSize:9,cursor:"pointer",fontWeight:700}}>✦ 隨機加一</button>
+                      <button onClick={()=>setSelA([])} style={{background:"transparent",border:"1px solid var(--subtext)",color:"var(--text)",padding:"2px 7px",borderRadius:4,fontSize:9,cursor:"pointer"}}>✕ 清空此區</button>
+                    </div>
+                  </div>
+                  {(()=>{
+                    const [ag, setAg] = React.useState("ear"); const curGroup = ACC_GROUPS.find(g=>g.key===ag) || ACC_GROUPS[0]; const visibleAcc = curGroup ? allA.filter(a => curGroup.ids.includes(a.id)) : [];
+                    return <>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
+                        {ACC_GROUPS.map(g=>{ const cnt = g.ids.filter(id=>selA.includes(id)).length; return <button key={g.key} onClick={()=>setAg(g.key)} style={{ padding:"3px 8px",borderRadius:9,fontSize:10,cursor:"pointer",fontWeight:700, background:ag===g.key?`${C.purple}40`:cnt>0?`${C.purple}14`:"transparent", border:`1px solid ${ag===g.key?C.purple:cnt>0?`${C.purple}59`:"var(--border)"}`, color:ag===g.key?C.purple:cnt>0?`${C.purple}BF`:"var(--text)" }}>{g.label}{cnt>0?` ·${cnt}`:""}</button>; })}
+                      </div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:3,minHeight:40}}>
+                        {visibleAcc.map(item=>{ const on=selA.includes(item.id); return <button key={item.id} onClick={()=>setSelA(p=>on?p.filter(k=>k!==item.id):[...p,item.id])} title={item.en} style={{ background:on?`${C.purple}33`:"var(--card)", border:`1px solid ${on?C.purple:"var(--border)"}`, color:on?C.purple:"var(--text)", padding:"5px 10px",borderRadius:15,fontSize:11,cursor:"pointer",fontWeight:on?700:400 }}>{item.label}</button>; })}
+                      </div>
+                    </>;
+                  })()}
+                </div>
+                
+                <Sec title={`⑩ 超級視覺張力 ${isCloudMode?"(雲端安全)":""}`} accentColor={isCloudMode?"var(--subtext)":C.green} onClear={()=>setSelBra([])} actionNode={<button onClick={drawRandomTensions} style={{background:"transparent",border:`1px solid ${isCloudMode?"var(--subtext)":C.green}`,color:isCloudMode?"var(--text)":C.green,padding:"2px 8px",borderRadius:4,fontSize:10,cursor:"pointer",fontWeight:700}}>✦ 抽5項</button>} containerStyle={{flex: 1, display: "flex", flexDirection: "column", marginBottom: 0}}>
+                  <div style={{flex: 1, display:"flex",flexWrap:"wrap",gap:5, overflowY:"auto", alignContent:"flex-start", paddingRight:"4px", paddingBottom:"4px", maxHeight:"360px"}}>
+                    {BRA_DB.map((b,i)=>{ 
+                      const id=`bra${i}`; const sel=selBra.includes(id); 
+                      let labelText = b.zh.includes(" — ") ? b.zh.split(" — ")[0] : b.zh.split("，")[0];
+                      if(labelText.length > 18) labelText = labelText.substring(0, 18) + "...";
+                      return <button key={id} onClick={()=>setSelBra(p=>sel?p.filter(k=>k!==id):[...p,id])} title={b.zh} style={{background:sel?(isCloudMode?`${C.cloud}33`:`${C.green}26`):"var(--card)",border:`1px solid ${sel?(isCloudMode?C.cloud:C.green):"var(--border)"}`,color:sel?(isCloudMode?C.cloud:C.green):"var(--text)",padding:"6px 12px",borderRadius:13,fontSize:11,cursor:"pointer",transition:"all 0.1s", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%"}}>{labelText}</button>; 
+                    })}
+                  </div>
+                </Sec>
+              </div>
+            </div>
+
+            <div style={{background:`${C.rose}0A`,border:`1px solid ${C.rose}26`,borderRadius:10,padding:"15px",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontSize:11,color:C.rose,letterSpacing:2,fontWeight:700}}>✂️ ⑪ 2026 流行沙龍髮型 SALON HAIR (可混搭)</div>
+                <button onClick={()=>{setSelHairStyle(null);setSelHairColor(null);}} style={{background:"transparent",border:`1px solid var(--subtext)`,color:"var(--text)",padding:"3px 8px",borderRadius:4,fontSize:10,cursor:"pointer"}}>✕ 清空此區</button>
+              </div>
+              
+              <div style={{marginBottom: 12}}>
+                <div style={{fontSize:10, color:"var(--subtext)", marginBottom:6}}>A. 髮型結構 (Style)</div>
+                {(()=>{
+                  const hGroups=[ {key:"sh",label:"✂️ 潮流短髮",range:[1,20]}, {key:"ml",label:"🦋 中長髮設計",range:[21,40]}, {key:"mn",label:"🕴️ 男士造型",range:[41,50]}, {key:"pm",label:"☁️ 造型燙髮",range:[51,70]} ];
+                  const [hg, setHg] = React.useState("sh"); const curHg = hGroups.find(g=>g.key===hg)||hGroups[0]; const visibleHair = HAIR_DB.filter(o=>{ const n=parseInt(o.id.replace("hr","")); return n>=curHg.range[0] && n<=curHg.range[1]; });
+                  return <>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
+                      {hGroups.map(g=>{ const isSel=HAIR_DB.filter(o=>{const n=parseInt(o.id.replace("hr",""));return n>=g.range[0]&&n<=g.range[1];}).some(o=>o.id===selHairStyle); return <button key={g.key} onClick={()=>setHg(g.key)} style={{ padding:"3px 8px",borderRadius:9,fontSize:10,cursor:"pointer",fontWeight:700, background:hg===g.key?`${C.rose}38`:isSel?`${C.rose}14`:"transparent", border:`1px solid ${hg===g.key?C.rose:isSel?`${C.rose}66`:"var(--border)"}`, color:hg===g.key?C.rose:isSel?`${C.rose}CC`:"var(--text)" }}>{g.label}{isSel?" ✓":""}</button>; })}
+                    </div>
+                    <DropSelect items={visibleHair} value={selHairStyle || ""} onChange={e => setSelHairStyle(e || null)} accent={C.rose} placeholder={`── 請選擇髮型設計 (${visibleHair.length} 項) ──`} />
+                  </>;
+                })()}
+              </div>
+
+              <div>
+                <div style={{fontSize:10, color:"var(--subtext)", marginBottom:6}}>B. 髮色與漸層 (Color)</div>
+                {(()=>{
+                  const cGroups=[ {key:"hl",label:"✨ 刷畫挑染",range:[71,90]}, {key:"cl",label:"🎨 髮色設計",range:[91,110]}, {key:"gr",label:"🌈 漸層髮色",range:[111,120]} ];
+                  const [cg, setCg] = React.useState("cl"); const curCg = cGroups.find(g=>g.key===cg)||cGroups[0]; const visibleColor = HAIR_DB.filter(o=>{ const n=parseInt(o.id.replace("hr","")); return n>=curCg.range[0] && n<=curCg.range[1]; });
+                  return <>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
+                      {cGroups.map(g=>{ const isSel=HAIR_DB.filter(o=>{const n=parseInt(o.id.replace("hr",""));return n>=g.range[0]&&n<=g.range[1];}).some(o=>o.id===selHairColor); return <button key={g.key} onClick={()=>setCg(g.key)} style={{ padding:"3px 8px",borderRadius:9,fontSize:10,cursor:"pointer",fontWeight:700, background:cg===g.key?`${C.rose}38`:isSel?`${C.rose}14`:"transparent", border:`1px solid ${cg===g.key?C.rose:isSel?`${C.rose}66`:"var(--border)"}`, color:cg===g.key?C.rose:isSel?`${C.rose}CC`:"var(--text)" }}>{g.label}{isSel?" ✓":""}</button>; })}
+                    </div>
+                    <DropSelect items={visibleColor} value={selHairColor || ""} onChange={e => setSelHairColor(e || null)} accent={C.rose} placeholder={`── 請選擇髮色渲染 (${visibleColor.length} 項) ──`} />
+                  </>;
+                })()}
+              </div>
+            </div>
+
+            <div style={{background:`${C.orange}0A`,border:`1px solid ${C.orange}26`,borderRadius:10,padding:"15px",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{fontSize:11,color:C.orange,letterSpacing:2,fontWeight:700}}>✦ ⑫ 風格趨勢速選庫 OUTFIT STYLE (250組)</div>
+                {selOutfitStyle&&<button onClick={()=>setSelOutfitStyle(null)} style={{background:"transparent",border:`1px solid var(--subtext)`,color:"var(--text)",padding:"3px 8px",borderRadius:4,fontSize:10,cursor:"pointer"}}>✕ 清空此區</button>}
+              </div>
+              {(()=>{
+                const osGroups=[ {key:"ql",label:"💎 Quiet Luxury",range:[1,20]}, {key:"coq",label:"🎀 Coquette",range:[21,35]}, {key:"y2k",label:"✨ Y2K",range:[36,50]}, {key:"str",label:"🛹 Streetwear",range:[51,65]}, {key:"drk",label:"📚 Dark Academia",range:[66,80]}, {key:"bar",label:"🩷 Barbiecore",range:[81,90]}, {key:"tec",label:"⚡ Techwear",range:[91,100]}, {key:"bal",label:"🩰 Ballet/Sport",range:[96,103]}, {key:"kr",label:"🇰🇷 Korean",range:[101,115]}, {key:"res",label:"🌊 Resort/Boho",range:[116,125]}, {key:"ret",label:"🕰 Vintage/Retro",range:[121,130]}, {key:"mob",label:"🐆 Mob Wife",range:[151,158]}, {key:"fst",label:"🎪 Festival",range:[210,215]}, {key:"eve",label:"🌙 Date/Evening",range:[179,186]}, {key:"hol",label:"🎉 Holiday",range:[246,250]}, {key:"mix",label:"🎨 Mix & Edit",range:[223,250]} ];
+                const [osg, setOsg] = React.useState("ql"); const curOsG = osGroups.find(g=>g.key===osg)||osGroups[0]; const visibleOs = OUTFIT_STYLE_DB.filter(o=>{ const n=parseInt(o.id.replace("os","")); return n>=curOsG.range[0] && n<=curOsG.range[1]; });
+                return <>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
+                    {osGroups.map(g=>{ const isSel=OUTFIT_STYLE_DB.filter(o=>{const n=parseInt(o.id.replace("os",""));return n>=g.range[0]&&n<=g.range[1];}).some(o=>o.id===selOutfitStyle); return <button key={g.key} onClick={()=>setOsg(g.key)} style={{ padding:"3px 8px",borderRadius:9,fontSize:10,cursor:"pointer",fontWeight:700, background:osg===g.key?`${C.orange}38`:isSel?`${C.orange}14`:"transparent", border:`1px solid ${osg===g.key?C.orange:isSel?`${C.orange}66`:"var(--border)"}`, color:osg===g.key?C.orange:isSel?`${C.orange}CC`:"var(--text)" }}>{g.label}{isSel?" ✓":""}</button>; })}
+                  </div>
+                  <DropSelect items={visibleOs} value={selOutfitStyle || ""} onChange={e => setSelOutfitStyle(e || null)} accent={C.orange} placeholder={`── 請選擇風格 (${visibleOs.length} 項) ──`} />
+                  <div style={{marginTop:6,display:"flex",gap:6,justifyContent:"flex-end"}}>
+                    <button onClick={()=>setSelOutfitStyle(OUTFIT_STYLE_DB[Math.floor(Math.random()*OUTFIT_STYLE_DB.length)]?.id||null)} style={{background:"transparent",border:`1px solid ${C.orange}`,color:C.orange,padding:"2px 8px",borderRadius:4,fontSize:9,cursor:"pointer",fontWeight:700}}>✦ 隨機抽風格</button>
+                  </div>
+                </>;
+              })()}
+            </div>
+
+            <div style={{ background: `linear-gradient(135deg, ${C.cloud}11, ${C.purple}11)`, border: `1px solid ${C.cloud}4D`, borderRadius: 12, padding: "16px", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 14, color: C.cloud, fontWeight: 900, letterSpacing: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{fontSize:18}}>✨</span> ⑬ Gemini 生圖格式專用區塊
+                </div>
+                <button onClick={clearGeminiSection} style={{ background: "transparent", border: `1px solid ${C.cloud}`, color: C.cloud, padding: "4px 10px", borderRadius: "6px", fontSize: "11px", cursor: "pointer", fontWeight: "bold", transition: "all 0.2s" }} onMouseOver={e => e.target.style.background = `${C.cloud}33`} onMouseOut={e => e.target.style.background = 'transparent'}>
+                  ✕ 清空此區
+                </button>
+              </div>
+
+              <div style={{background:`${C.cyan}0D`,border:`1px solid ${C.cyan}33`,borderRadius:10,padding:"12px 15px",marginBottom:12}}>
+                <div style={{fontSize:11,color:C.cyan,letterSpacing:2,fontWeight:700,marginBottom:8}}>🖼️ 影像參考強制指令 (最優先前綴)</div>
+                <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refOutfit?`${C.cyan}33`:"var(--card)", border:`1px solid ${refOutfit?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refOutfit?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refOutfit} onChange={e=>setRefOutfit(e.target.checked)} style={{accentColor:C.cyan}}/> 依照服裝參考圖：</label>
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refPose?`${C.cyan}33`:"var(--card)", border:`1px solid ${refPose?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refPose?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refPose} onChange={e=>setRefPose(e.target.checked)} style={{accentColor:C.cyan}}/> 依照參考圖：精準模仿相同姿勢</label>
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refScene?`${C.cyan}33`:"var(--card)", border:`1px solid ${refScene?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refScene?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refScene} onChange={e=>setRefScene(e.target.checked)} style={{accentColor:C.cyan}}/> 依照參考圖場景：讓人物在場景中生成</label>
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refCharacter?`${C.cyan}33`:"var(--card)", border:`1px solid ${refCharacter?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refCharacter?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refCharacter} onChange={e=>setRefCharacter(e.target.checked)} style={{accentColor:C.cyan}}/> 讓參考圖的人物融入提示詞生成出對應的圖片</label>
+                </div>
+              </div>
+
+              <div style={{background:`${C.orange}0A`,border:`1px solid ${C.orange}26`,borderRadius:10,padding:"15px",marginBottom:12}}>
+                <div style={{fontSize:11,color:C.orange,letterSpacing:2,fontWeight:700,marginBottom:10}}>🎬 導演指令 DIRECTOR SETTINGS <span style={{fontSize:9, color:"var(--subtext)", fontWeight:"normal"}}>(按一下選取，再按一下取消)</span></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div style={{gridColumn:"1/-1"}}>
+                    <div style={{fontSize:11,color:"var(--subtext)",marginBottom:5}}>① 人物細節參考設定</div>
+                    <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                      <div><div style={{fontSize:10,color:"var(--subtext)",marginBottom:3}}>前綴</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{DIRECTION_DB.ref_prefix.map(item=><SelBtn key={item.id} item={item} selected={selRefPrefix} onSelect={id=>setSelRefPrefix(p=>p===id?null:id)} color={C.orange}/>)}</div></div>
+                      <div><div style={{fontSize:10,color:"var(--subtext)",marginBottom:3}}>動作</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{DIRECTION_DB.ref_core.map(item=><SelBtn key={item.id} item={item} selected={selRefCore} onSelect={id=>setSelRefCore(p=>p===id?null:id)} color={C.orange}/>)}</div></div>
+                      <div><div style={{fontSize:10,color:"var(--subtext)",marginBottom:3}}>後綴</div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{DIRECTION_DB.ref_suffix.map(item=><SelBtn key={item.id} item={item} selected={selRefSuffix} onSelect={id=>setSelRefSuffix(p=>p===id?null:id)} color={C.orange}/>)}</div></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:"var(--subtext)",marginBottom:5}}>② 畫面格式 & 人物佔比</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {DIRECTION_DB.ratio.map(item=><SelBtn key={item.id} item={item} selected={selRatio} onSelect={id=>setSelRatio(p=>p===id?null:id)} color={C.cyan}/>)}
+                      {DIRECTION_DB.person_size.map(item=><SelBtn key={item.id} item={item} selected={selPersonSize} onSelect={id=>setSelPersonSize(p=>p===id?null:id)} color={C.cyan}/>)}
+                    </div>
+                  </div>
+                  <div style={{gridColumn:"1/-1"}}>
+                    <div style={{fontSize:11,color:"var(--subtext)",marginBottom:8}}>③ 構圖 & 攝影技法</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {allCompRule.map(item=><SelBtn key={item.id} item={item} selected={selCompRule} onSelect={id=>setSelCompRule(p=>p===id?null:id)} color={C.purple}/>)}
+                      {DIRECTION_DB.comp_bg.map(item=><SelBtn key={item.id} item={item} selected={selCompBg} onSelect={id=>setSelCompBg(p=>p===id?null:id)} color={C.purple}/>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{background:`${C.cloud}1A`,border:`1px solid ${C.cloud}4D`,borderRadius:10,padding:"15px"}}>
+                <div style={{fontSize:11,color:C.cloud,letterSpacing:2,fontWeight:700,marginBottom:10}}>📷 專業焦段與連貫性分鏡 LENS & CONTINUITY</div>
+                
+                <div style={{fontSize:10,color:"var(--subtext)",marginBottom:4}}>基礎質感與光線 (可多選)</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12}}>
+                  {GEMINI_BASE.map(item=>{
+                    const on = selGeminiBase.includes(item.id);
+                    return <button key={item.id} onClick={()=>setSelGeminiBase(p=>on?p.filter(k=>k!==item.id):[...p,item.id])} style={{ background:on?`${C.cloud}33`:"var(--card)", border:`1px solid ${on?C.cloud:"var(--border)"}`, color:on?C.cloud:"var(--text)", padding:"4px 9px",borderRadius:13,fontSize:11,cursor:"pointer",fontWeight:on?700:400 }}>{on?"✓ ":""}{item.label}</button>;
+                  })}
+                </div>
+
+                <div style={{fontSize:10,color:"var(--subtext)",marginBottom:4}}>鏡頭語言與焦段 (單選)</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12}}>
+                  {GEMINI_LENS.map(item=><SelBtn key={item.id} item={item} selected={selGeminiLens} onSelect={id=>setSelGeminiLens(p=>p===id?null:id)} color={C.cloud}/>)}
+                </div>
+
+                <div style={{fontSize:10,color:C.rose,marginBottom:4,fontWeight:"bold"}}>🎬 連續生圖專用指令 (延續上圖 / 單選)</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {GEMINI_CONT.map(item=><SelBtn key={item.id} item={item} selected={selGeminiCont} onSelect={id=>setSelGeminiCont(p=>p===id?null:id)} color={C.rose}/>)}
+                </div>
+              </div>
+            </div>
+
+            <button onClick={gen} disabled={loading} style={{width:"100%",padding:16,background:loading?"var(--border)":isCloudMode?`linear-gradient(135deg,${C.cloud},${C.cyan})`:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",borderRadius:10,color:"#fff",fontSize:16,fontWeight:800,letterSpacing:3,cursor:loading?"not-allowed":"pointer",marginBottom:12}}>
+              {loading?"⟳ 生成中...":isCloudMode?"◈ 產生雲端安全咒語 (隱性浮雕破防機制)":"◈ 產生本地硬核咒語 (注入 1.5 標籤破壁)"}
+            </button>
+
+            {result&&<div>
+              <div style={{fontSize:11, color:isCloudMode?C.cloud:C.green, marginBottom:8, letterSpacing:1}}>{isCloudMode ? "☁️ 已啟用雲端破防模式：自動掛載隱性浮雕微陰影咒語" : "✔ 已自動植入: sks_salon, sks_je, IPD 1:1, 滿血物理張力詞"}</div>
+              <PromptCard title="＋ 正向提示詞 POSITIVE" titleColor={isCloudMode?C.cloud:C.green} content={prompts.pos} onExpand={lang=>handleExpand("pos",lang)} expanding={expandingState.pos_zh||expandingState.pos_en} onActionSend={(txt, lang) => isCloudMode ? handleCloudGenerate(txt) : handleComfySend(txt, prompts.neg[lang])} isCloudMode={isCloudMode} isComfyGenerating={isComfyGenerating} C={C}/>
+              <PromptCard title="－ 負向提示詞 NEGATIVE" titleColor={C.red} content={prompts.neg} C={C}/>
+              {selChars.map(charId => {
+                  const p = prompts[charId]; const ch = mergedChars[charId]; if (!p || (!p.zh && !p.en)) return null;
+                  return <PromptCard key={charId} title={`◆ ${ch.name}`} titleColor={ch.color} content={p} onExpand={lang=>handleExpand(charId,lang)} expanding={expandingState[`${charId}_zh`]||expandingState[`${charId}_en`]} onActionSend={(txt, lang) => isCloudMode ? handleCloudGenerate(txt) : handleComfySend(txt, prompts.neg[lang])} isCloudMode={isCloudMode} isComfyGenerating={isComfyGenerating} C={C}/>;
+              })}
+              <CopyAll prompts={prompts} selChars={selChars} mergedChars={mergedChars} title={`${result.title_zh} / ${result.title_en}`} C={C}/>
+            </div>}
+
+            {/* 🎨 算圖結果動態顯示區域 */}
+            {(isComfyGenerating || comfyImages.length > 0) && (
+              <div ref={comfyGalleryRef} style={{marginTop:24, padding:20, background:"var(--card)", border:`1px solid ${isCloudMode ? C.cloud : C.green}`, borderRadius:12, boxShadow:`0 10px 30px ${isCloudMode ? C.cloud : C.green}1A`}}>
+                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:16}}>
+                   <span style={{fontSize:20}}>{isCloudMode ? "☁️" : "🎨"}</span>
+                   <span style={{color:isCloudMode ? C.cloud : C.green, fontWeight:800, fontSize:15, letterSpacing:1}}>
+                     {isCloudMode ? "Google Imagen 3 雲端算圖引擎" : "ComfyUI 本地即時算圖引擎"}
+                   </span>
+                </div>
+                {isComfyGenerating && (
+                  <div style={{marginBottom: 10}}>
+                    <div style={{display:"flex", justifyContent:"space-between", fontSize:12, color:"var(--subtext)", marginBottom:8, fontWeight:"bold"}}>
+                      <span style={{color: isCloudMode ? C.cloud : C.green}}>{isCloudMode ? "⚡ 正在呼叫 Google API，請稍候..." : "⚡ 正在與 RTX 5090 伺服器通訊，渲染處理中..."}</span>
+                      <span>{comfyProgress}%</span>
+                    </div>
+                    <div style={{width:"100%", height:8, background:`${isCloudMode ? C.cloud : C.green}1A`, borderRadius:4, overflow:"hidden", border:`1px solid ${isCloudMode ? C.cloud : C.green}4D`}}>
+                      <div style={{width:`${comfyProgress}%`, height:"100%", background:isCloudMode ? C.cloud : C.green, transition:"width 0.3s ease-out", boxShadow:`0 0 10px ${isCloudMode ? C.cloud : C.green}CC`}}></div>
+                    </div>
+                  </div>
+                )}
+                {comfyImages.length > 0 && (
+                  <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:10}}>
+                    {comfyImages.map((src, idx) => (
+                      <div key={idx} className="comfy-image" style={{position:"relative", flexShrink:0}}>
+                         <img src={src} style={{height: 450, borderRadius:8, border:`2px solid var(--border)`, objectFit:"contain", background:"#000", boxShadow:"0 5px 15px rgba(0,0,0,0.5)", display:"block"}} alt={`Generated ${idx}`} />
+                         <div style={{position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.7)", padding:"4px 8px", borderRadius:4, color:isCloudMode ? C.cloud : C.green, fontSize:10, fontWeight:"bold", border:`1px solid ${isCloudMode ? C.cloud : C.green}`}}>✓ 渲染完成</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </>;
+    }
+    const root = ReactDOM.createRoot(document.getElementById('ops-app-root'));
+    root.render(<App />);
+  };
+</script>
+</body>
+</html>
