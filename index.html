@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🔐 OPS 系統 (V9.9 終極修復版)</title>
+  <title>🔐 OPS 系統 (V10.0 終極進化版)</title>
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#0a0a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -235,8 +235,7 @@ async function doUnlock(isAutoLogin = false) {
           </div>
         </div>{children}</div>;
     }
-// ================== 第一部分結束 ==================
-// ================== 第二部分開始 ==================
+
     function App() {
       const [theme, setTheme] = useState(() => localStorage.getItem("ops_theme") || "dark");
       useEffect(() => {
@@ -273,6 +272,10 @@ async function doUnlock(isAutoLogin = false) {
 
       const [refOutfit, setRefOutfit] = useState(false); const [refPose, setRefPose] = useState(false); 
       const [refScene, setRefScene] = useState(false); const [refCharacter, setRefCharacter] = useState(false);
+      
+      // V10.0 新增強制狀態變數
+      const [refDogSelfie, setRefDogSelfie] = useState(false);
+      const [refCheerMakeup, setRefCheerMakeup] = useState(false);
 
       const [selGeminiBase, setSelGeminiBase] = useState([]); const [selGeminiLens, setSelGeminiLens] = useState(null); const [selGeminiCont, setSelGeminiCont] = useState(null);
       const [selRefPrefix,setSelRefPrefix] = useState(null); const [selRefCore,setSelRefCore] = useState(null); const [selRefSuffix,setSelRefSuffix] = useState(null); 
@@ -291,6 +294,7 @@ async function doUnlock(isAutoLogin = false) {
 
       const clearGeminiSection = () => {
         setRefOutfit(false); setRefPose(false); setRefScene(false); setRefCharacter(false);
+        setRefDogSelfie(false); setRefCheerMakeup(false);
         setSelRefPrefix(null); setSelRefCore(null); setSelRefSuffix(null); setSelRatio(null); setSelPersonSize(null); setSelCompRule(null); setSelCompBg(null);
         setSelGeminiBase([]); setSelGeminiLens(null); setSelGeminiCont(null);
       };
@@ -412,8 +416,10 @@ async function doUnlock(isAutoLogin = false) {
 
         const coreDNA_EN = isCloudMode ? "1girl, solo, beautiful Asian woman, ultra-realistic photography, raw photo, highly detailed natural skin texture, masterpiece" : "sks_salon, sks_je, 1girl, solo, IPD 1:1, narrow face, ultra-realistic photography, raw photo, highly detailed natural skin texture";
         const coreDNA_ZH = isCloudMode ? "單人女孩，獨自，極致寫實攝影，原始照片，極高細節自然真實皮膚紋理，大師之作" : "sks_salon, sks_je, 單人女孩, 獨自, IPD 1:1, 窄臉, 極致寫實攝影, 原始照片, 極高細節自然真實皮膚紋理";
-        const motion_EN = "High-density natural motion, cinematic narrative lighting, depth of field";
-        const motion_ZH = "高密度自然動作，電影級光影敘事，景深";
+        
+        // V10.0 更新：高密度自然動作與電影光影敘事
+        const motion_EN = "High-density natural motion, cinematic light and shadow narrative, fluid everyday interactions, rich micro-expressions, highly detailed, dynamic depth of field";
+        const motion_ZH = "高密度自然動作，電影級光影敘事，充滿生活感與流暢的細節互動，豐富微表情，極致寫實，動態景深";
 
         let chunksZH = []; let chunksEN = [];
 
@@ -421,6 +427,18 @@ async function doUnlock(isAutoLogin = false) {
         if (refPose) { chunksZH.push("[依照參考圖:精準模仿相同姿勢]"); chunksEN.push("[Based on reference: exactly imitate same pose]"); }
         if (refScene) { chunksZH.push("[依照參考圖場景:讓人物在場景中生成]"); chunksEN.push("[Based on scene reference: generate character in scene]"); }
         if (refCharacter) { chunksZH.push("[讓參考圖的人物融入提示詞生成出對應的圖片]"); chunksEN.push("[Integrate the reference image character into the prompt to generate the corresponding image]"); }
+        
+        // V10.0 更新：強制狗自拍與場景
+        if (refDogSelfie) {
+            chunksZH.push("[讓參考圖的人物穿著參考圖的服裝，展現出明顯的豐滿體態，參考圖中人物姿態:抱著參考圖中的狗狗，站在參考圖中的物品前面，對著鏡頭自拍，俏皮可愛的嘴臉表情。人物比例要夠大夠靠近鏡頭。直接在參考圖的場景中照片生成]");
+            chunksEN.push("[Let the character wear the reference clothing, displaying a full figure, pose: hugging the dog and standing in front of objects from the reference, taking a selfie looking at the camera with a playful and cute expression. Large character proportion close to the camera. Generate directly in the reference scene]");
+        }
+        
+        // V10.0 更新：啦啦隊妝容強制寫入
+        if (refCheerMakeup) {
+            chunksZH.push("[妝容: 啦啦隊舞台妝容，甜美偶像風，無瑕半霧面底妝透出柔和高光，提亮膚色，平滑隱形毛孔，柔和蜜桃粉眼影加深淺暖棕色，強調下眼瞼臥蠶，眼下點綴半透明水晶般閃片，睫毛纖長分明自然捲翹，柔和的平眉圓潤眉型，蘋果肌刷上淺蜜桃色腮紅，水潤亮澤的紅粉色唇彩，充滿青春活力，上鏡妝效]");
+            chunksEN.push("[makeup: cheerleader stage makeup, sweet idol style, flawless semi-matte base makeup with soft glow highlights, brightened skin tone, smooth pore-blurred texture, soft peach-pink eyeshadow with light warm brown depth, lower eyelid aegyo-sal emphasized, translucent crystal-like glitter scattered under eyes, long separated lashes with natural curl, soft straight brown eyebrows with rounded shape, light peach blush on apple of cheeks, glossy red-pink hydrated lips, youthful, energetic, camera-friendly makeup]");
+        }
 
         if (selGeminiCont) { const cont = GEMINI_CONT.find(x=>x.id===selGeminiCont); if(cont) { chunksZH.push(`[${cont.zh}]`); chunksEN.push(`[${cont.en}]`); } }
 
@@ -439,7 +457,7 @@ async function doUnlock(isAutoLogin = false) {
         if (selGeminiLens) { const lens = GEMINI_LENS.find(x=>x.id===selGeminiLens); if(lens) { chunksZH.push(lens.zh); chunksEN.push(lens.en); } }
 
         chunksZH.push(coreDNA_ZH); chunksEN.push(coreDNA_EN);
-        if (m) { chunksZH.push(`[妝容: ${m.zh || m.label}]`); chunksEN.push(`[makeup: ${m.en}]`); }
+        if (m && !refCheerMakeup) { chunksZH.push(`[妝容: ${m.zh || m.label}]`); chunksEN.push(`[makeup: ${m.en}]`); }
         if (selHairStyle) { const hs = HAIR_DB.find(x=>x.id===selHairStyle); chunksZH.push(`[髮型設計: ${hs.zh}]`); chunksEN.push(`[hair design: ${hs.en}]`); }
         if (selHairColor) { const hc = HAIR_DB.find(x=>x.id===selHairColor); chunksZH.push(`[髮色渲染: ${hc.zh}]`); chunksEN.push(`[hair color: ${hc.en}]`); }
         if (f) { chunksZH.push(`穿著 ${f.zh || f.label}`); chunksEN.push(`wearing ${f.en}`); }
@@ -516,7 +534,7 @@ async function doUnlock(isAutoLogin = false) {
           <div style={{background:`linear-gradient(90deg, ${C.orange}1A 0%, ${C.cyan}0D 100%)`,borderBottom:"1px solid var(--border)",padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:100}}>
             <div>
               <div style={{color:C.orange,fontWeight:900,fontSize:15,letterSpacing:4}}>◈ OUTFIT PROMPT SYSTEM <span style={{color:C.cyan}}>MODULAR</span></div>
-              <div style={{fontSize:10,color:"var(--subtext)",letterSpacing:1.5}}>V9.9 終極軍規防護版</div>
+              <div style={{fontSize:10,color:"var(--subtext)",letterSpacing:1.5}}>V10.0 終極進化版</div>
             </div>
             <div style={{display:"flex", gap:8}}>
               <Btn onClick={clearAll} color={C.red} style={{background:"transparent"}}>✕ 清空全部</Btn>
@@ -678,14 +696,7 @@ async function doUnlock(isAutoLogin = false) {
               <div style={{marginBottom: 12}}>
                 <div style={{fontSize:10, color:"var(--subtext)", marginBottom:6}}>A. 髮型結構 (Style)</div>
                 {(()=>{
-                  const hGroups=[ 
-  {key:"sh", label:"✂️ 基礎短/中", range:[1,40]}, 
-  {key:"mn", label:"🕴️ 男士", range:[41,50]}, 
-  {key:"pm", label:"☁️ 基礎燙髮", range:[51,70]}, 
-  {key:"sf", label:"🛸 科幻/Y3K", range:[121,140]},
-  {key:"tr1", label:"✨ 26高定", range:[141,165]}, 
-  {key:"tr2", label:"👑 Runway", range:[166,210]} 
-];
+                  const hGroups=[ {key:"sh", label:"✂️ 基礎短/中", range:[1,40]}, {key:"mn", label:"🕴️ 男士", range:[41,50]}, {key:"pm", label:"☁️ 基礎燙髮", range:[51,70]}, {key:"sf", label:"🛸 科幻/Y3K", range:[121,140]}, {key:"tr1", label:"✨ 26高定", range:[141,165]}, {key:"tr2", label:"👑 Runway", range:[166,210]} ];
                   const [hg, setHg] = React.useState("sh"); const curHg = hGroups.find(g=>g.key===hg)||hGroups[0]; const visibleHair = HAIR_DB.filter(o=>{ const n=parseInt(o.id.replace("hr","")); return n>=curHg.range[0] && n<=curHg.range[1]; });
                   return <>
                     <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:8}}>
@@ -748,6 +759,12 @@ async function doUnlock(isAutoLogin = false) {
                   <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refPose?`${C.cyan}33`:"var(--card)", border:`1px solid ${refPose?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refPose?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refPose} onChange={e=>setRefPose(e.target.checked)} style={{accentColor:C.cyan}}/> 依照參考圖：精準模仿相同姿勢</label>
                   <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refScene?`${C.cyan}33`:"var(--card)", border:`1px solid ${refScene?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refScene?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refScene} onChange={e=>setRefScene(e.target.checked)} style={{accentColor:C.cyan}}/> 依照參考圖場景：讓人物在場景中生成</label>
                   <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refCharacter?`${C.cyan}33`:"var(--card)", border:`1px solid ${refCharacter?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refCharacter?C.cyan:"var(--subtext)"}}><input type="checkbox" checked={refCharacter} onChange={e=>setRefCharacter(e.target.checked)} style={{accentColor:C.cyan}}/> 讓參考圖的人物融入提示詞生成出對應的圖片</label>
+                  
+                  {/* V10.0 新增: 抱狗自拍與場景 */}
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refDogSelfie?`${C.cyan}33`:"var(--card)", border:`1px solid ${refDogSelfie?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refDogSelfie?C.cyan:"var(--subtext)", fontWeight:refDogSelfie?"bold":"normal"}}><input type="checkbox" checked={refDogSelfie} onChange={e=>setRefDogSelfie(e.target.checked)} style={{accentColor:C.cyan}}/> 🐶 強制：抱狗自拍與場景</label>
+                  
+                  {/* V10.0 新增: 啦啦隊妝容 */}
+                  <label style={{display:"flex", alignItems:"center", gap:6, cursor:"pointer", background:refCheerMakeup?`${C.cyan}33`:"var(--card)", border:`1px solid ${refCheerMakeup?C.cyan:"var(--border)"}`, padding:"6px 12px", borderRadius:6, fontSize:12, color:refCheerMakeup?C.cyan:"var(--subtext)", fontWeight:refCheerMakeup?"bold":"normal"}}><input type="checkbox" checked={refCheerMakeup} onChange={e=>setRefCheerMakeup(e.target.checked)} style={{accentColor:C.cyan}}/> ✨ 自訂啦啦隊妝容</label>
                 </div>
               </div>
 
@@ -764,17 +781,17 @@ async function doUnlock(isAutoLogin = false) {
                   </div>
                   <div>
                     <div style={{fontSize:11,color:"var(--subtext)",marginBottom:5}}>② 畫面格式 & 人物佔比</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
                       {DIRECTION_DB.ratio.map(item=><SelBtn key={item.id} item={item} selected={selRatio} onSelect={id=>setSelRatio(p=>p===id?null:id)} color={C.cyan}/>)}
                       {DIRECTION_DB.person_size.map(item=><SelBtn key={item.id} item={item} selected={selPersonSize} onSelect={id=>setSelPersonSize(p=>p===id?null:id)} color={C.cyan}/>)}
                     </div>
                   </div>
                   <div style={{gridColumn:"1/-1"}}>
                     <div style={{fontSize:11,color:"var(--subtext)",marginBottom:8}}>③ 構圖 & 攝影技法</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
                       {allCompRule.map(item=><SelBtn key={item.id} item={item} selected={selCompRule} onSelect={id=>setSelCompRule(p=>p===id?null:id)} color={C.purple}/>)}
-                      {DIRECTION_DB.comp_bg.map(item=><SelBtn key={item.id} item={item} selected={selCompBg} onSelect={id=>setSelCompBg(p=>p===id?null:id)} color={C.purple}/>)}
                     </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{DIRECTION_DB.comp_bg.map(item=><SelBtn key={item.id} item={item} selected={selCompBg} onSelect={id=>setSelCompBg(p=>p===id?null:id)} color={C.purple}/>)}</div>
                   </div>
                 </div>
               </div>
@@ -841,7 +858,7 @@ async function doUnlock(isAutoLogin = false) {
                   <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:10}}>
                     {comfyImages.map((src, idx) => (
                       <div key={idx} className="comfy-image" style={{position:"relative", flexShrink:0}}>
-                         <img src={src} style={{height: 450, borderRadius:8, border:`2px solid var(--border)`, objectFit:"contain", background:"#000", boxShadow:"0 5px 15px rgba(0,0,0,0.5)", display:"block"}} alt={`Generated ${idx}`} />
+                         <img src={src} style={{height: 450, borderRadius:8, border:`2px solid var(--border)`, objectFit:"contain", background:"#000", boxShadow:"0 5px 15px rgba(0,0,0,0.5)", display:"block"} } alt={`Generated ${idx}`} />
                          <div style={{position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.7)", padding:"4px 8px", borderRadius:4, color:isCloudMode ? C.cloud : C.green, fontSize:10, fontWeight:"bold", border:`1px solid ${isCloudMode ? C.cloud : C.green}`}}>✓ 渲染完成</div>
                       </div>
                     ))}
@@ -857,7 +874,6 @@ async function doUnlock(isAutoLogin = false) {
     root.render(<App />);
   };
 </script>
-</body>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
