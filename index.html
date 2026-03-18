@@ -201,16 +201,17 @@ async function doUnlock(isAutoLogin = false) {
     function Btn({children, onClick, disabled, style={}, color}) { return <button onClick={onClick} disabled={disabled} style={{background:`${color}18`,border:`1px solid ${color}`,color:color,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:disabled?"not-allowed":"pointer",fontWeight:700,opacity:disabled?0.5:1,transition:"all 0.2s",...style}}>{children}</button>; }
     function SelBtn({item, selected, onSelect, color}) { const sel = selected === item.id; return <button onClick={()=>onSelect(item.id)} title={item.en||""} style={{background:sel?`${color}22`:"var(--card)", border:`1px solid ${sel?color:"var(--border)"}`, color:sel?color:"var(--text)", padding:"4px 9px", borderRadius:13, fontSize:11, cursor:"pointer", fontWeight:sel?700:400}}>{sel?"✓ ":""}{item.label}</button>; }
     function DropSelect({ items, value, onChange, accent, placeholder = "── 請選擇 ──" }) { const selected = items.find(i => i.id === value); return ( <div className="ops-select-wrap"> <select className="ops-select" value={value || ""} onChange={e => onChange(e.target.value || null)} style={{ border: `1px solid ${value ? accent : "var(--border)"}`, color: value ? accent : "var(--text)" }}> <option value="">{placeholder}</option>{items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)} </select> {selected && <div className="ops-selected-badge" style={{ background: `${accent}0f`, border: `1px solid ${accent}25`, color: `${accent}bb` }}>{selected.zh || selected.en || selected.label}</div>} </div> ); }
-    function PromptCard({title, titleColor, content, onExpand, expanding, onActionSend, isCloudMode, isComfyGenerating, C}) {
+    function PromptCard({title, titleColor, content, onExpand, expanding, onActionSend, isCloudMode, isRunningHubMode, isComfyGenerating, C}) {
       const [tab, setTab] = useState("en"); const [copied, setCopied] = useState(false); const txt = tab === "zh" ? (content ? content.zh : "") : (content ? content.en : "");
       const handleCopy = () => { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+      const acSend = isCloudMode ? C.cloud : isRunningHubMode ? C.rhGold : C.green;
       return <div style={{background:"var(--promptBg)",border:`1px solid ${titleColor}30`,borderRadius:10,overflow:"hidden",marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderBottom:`1px solid ${titleColor}20`, flexWrap:"wrap", gap:6}}>
           <span style={{color:titleColor,fontWeight:700,fontSize:12}}>{title}</span>
           <div style={{display:"flex",gap:5}}>
             {["en","zh"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"2px 8px",fontSize:11,border:"none",background:tab===t?`${titleColor}22`:"transparent",color:tab===t?titleColor:"var(--subtext)",cursor:"pointer",borderRadius:4,fontWeight:tab===t?700:400}}>{t.toUpperCase()}</button>)}
             {onExpand&&<Btn onClick={()=>onExpand(tab)} disabled={expanding} color={C.cyan} style={{padding:"2px 8px",fontSize:11}}>{expanding?"⟳ 擴寫...":"✦ AI智能擴寫"}</Btn>}
-            {onActionSend && <Btn onClick={() => onActionSend(txt, tab)} disabled={isComfyGenerating} color={isCloudMode ? C.cloud : C.green} style={{padding:"2px 8px",fontSize:11, background: isCloudMode ? `${C.cloud}26` : `${C.green}26`}}>{isComfyGenerating ? "⏳ 算圖中..." : (isCloudMode ? `☁️ 雲端 Imagen 算圖` : `🚀 送至 ComfyUI`)}</Btn>}
+            {onActionSend && <Btn onClick={() => onActionSend(txt, tab)} disabled={isComfyGenerating} color={acSend} style={{padding:"2px 8px",fontSize:11, background:`${acSend}26`}}>{isComfyGenerating ? "⏳ 算圖中..." : (isCloudMode ? `☁️ 雲端 Imagen 算圖` : isRunningHubMode ? `⚡ 送至 RunningHub` : `🚀 送至 ComfyUI`)}</Btn>}
             <Btn onClick={handleCopy} color={copied ? C.green : titleColor} style={{padding:"2px 8px",fontSize:11}}>{copied ? "✓ 已複製" : "⎘ 複製"}</Btn>
           </div>
         </div>
@@ -246,7 +247,7 @@ async function doUnlock(isAutoLogin = false) {
         document.documentElement.style.setProperty('--promptBg', t.promptBg);
       }, [theme]);
 
-      const C = { bg:"var(--bg)", card:"var(--card)", border:"var(--border)", ...(THEMES[theme] || THEMES.dark).palette };
+      const C = { bg:"var(--bg)", card:"var(--card)", border:"var(--border)", ...(THEMES[theme] || THEMES.dark).palette, rhGold:"#f5c842" };
 
       const [customChars, setCustomChars] = useState(() => JSON.parse(localStorage.getItem("ops_custom_chars") || "{}"));
       const [showCharForm, setShowCharForm] = useState(false); const [newChar, setNewChar] = useState({ id: "", name: "", color: "#ffb703", zh: "", en: "" });
@@ -283,6 +284,11 @@ async function doUnlock(isAutoLogin = false) {
 
       const [result,setResult]=useState(null); const [prompts,setPrompts]=useState({pos:{zh:"",en:""},neg:{zh:"",en:""}});
       const [loading,setLoading]=useState(false); const [expandingState,setExpandingState]=useState({});
+      const [isRunningHubMode, setIsRunningHubMode] = useState(false);
+      const [rhApiKey, setRhApiKey] = useState(() => localStorage.getItem("ops_rh_api_key") || "");
+      const [rhWorkflowId, setRhWorkflowId] = useState(() => localStorage.getItem("ops_rh_workflow_id") || "");
+      const [rhQueueStatus, setRhQueueStatus] = useState("");
+      const [copiedIdx, setCopiedIdx] = useState(null);
 
       const allF = [...FABRIC_DB, ...customDB.fabric]; const allB = [...BOTTOM_DB, ...customDB.bottom];
       const allP = [...POSE_DB, ...customDB.pose]; const allM = [...MAKEUP_DB, ...customDB.makeup];
@@ -369,6 +375,71 @@ async function doUnlock(isAutoLogin = false) {
                 };
             } else { alert("⚠️ WebSocket 連線失敗，無法即時追蹤進度，但已送出算圖請求。"); setIsComfyGenerating(false); }
         } catch (err) { setIsComfyGenerating(false); alert(`❌ 發送失敗！\n系統錯誤: ${err.message}`); if (ws) ws.close(); }
+      };
+
+      const handleRunningHubSend = async (posText) => {
+        if (!rhApiKey) return alert("請先填寫 RunningHub API Key！");
+        if (!rhWorkflowId) return alert("請先填寫 RunningHub 工作流 ID！");
+        setIsComfyGenerating(true); setComfyProgress(5); setComfyImages([]); setRhQueueStatus(""); setCopiedIdx(null);
+        const RH_ERRORS = {
+          "TASK_QUEUE_MAXED": "⏳ 佇列已滿\n請等當前任務完成後再試，或升級 RunningHub 方案。",
+          "INVALID_API_KEY": "🔑 API Key 無效，請重新複製。",
+          "WORKFLOW_NOT_FOUND": "📋 找不到工作流，請確認 ID 與 API 模式。",
+          "INSUFFICIENT_COINS": "💰 RunningHub 算力點不足，請充值。",
+        };
+        const tryCreate = async (retry) => {
+          const s1 = Math.floor(Math.random()*999999999999), s2 = Math.floor(Math.random()*999999999999);
+          const body = { apiKey: rhApiKey, workflowId: rhWorkflowId, nodeInfoList: [
+            { nodeId:"5", fieldName:"text", fieldValue: posText },
+            { nodeId:"4", fieldName:"seed", fieldValue: s1 },
+            { nodeId:"21", fieldName:"seed", fieldValue: s2 }
+          ]};
+          const res = await fetch("https://www.runninghub.cn/task/openapi/create", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+          if (!res.ok) throw new Error(`連線失敗 HTTP ${res.status}`);
+          const j = await res.json();
+          const errKey = j.msg || (typeof j.data === "string" ? j.data : "");
+          if (errKey === "TASK_QUEUE_MAXED") {
+            if (retry <= 0) throw new Error(RH_ERRORS["TASK_QUEUE_MAXED"]);
+            const w = (4 - retry) * 10 + 15;
+            setRhQueueStatus(`⏳ 佇列已滿，${w}秒後重試 (剩餘${retry}次)...`);
+            await new Promise(r => setTimeout(r, w * 1000));
+            setRhQueueStatus("🔄 重試中...");
+            return tryCreate(retry - 1);
+          }
+          if (j.code !== 0) throw new Error(RH_ERRORS[errKey] || `建立失敗: ${errKey || j.code}`);
+          if (!j.data?.taskId) throw new Error("未取得 taskId，請確認設定。");
+          return j.data.taskId;
+        };
+        try {
+          setRhQueueStatus("📡 建立任務中...");
+          const taskId = await tryCreate(3);
+          setComfyProgress(25); setRhQueueStatus(`✅ 任務建立成功，等待算圖...`);
+          let attempts = 0;
+          while (attempts < 90) {
+            await new Promise(r => setTimeout(r, 4000));
+            attempts++;
+            setComfyProgress(Math.min(90, 25 + attempts * 0.73));
+            try {
+              const sr = await fetch("https://www.runninghub.cn/task/openapi/outputs", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ apiKey: rhApiKey, taskId }) });
+              const sj = await sr.json();
+              if (sj.code === 0 && Array.isArray(sj.data) && sj.data.length > 0) {
+                const imgs = sj.data.filter(o => o.fileUrl);
+                if (imgs.length > 0) {
+                  setComfyImages(imgs.map(o => o.fileUrl));
+                  setComfyProgress(100); setRhQueueStatus("✨ 算圖完成！");
+                  setTimeout(() => { if (comfyGalleryRef.current) comfyGalleryRef.current.scrollIntoView({ behavior:"smooth", block:"start" }); }, 300);
+                  return;
+                }
+              }
+              const st = sj.data?.status || sj.msg || "";
+              if (/failed|error/i.test(st)) throw new Error(`任務失敗(${st})，請至 RunningHub 控制台查看日誌。`);
+            } catch(pe) { if (/失敗/.test(pe.message)) throw pe; }
+            setRhQueueStatus(`⚡ Z-image 算圖中... 已等待${attempts*4}s`);
+          }
+          throw new Error("算圖超時(6分鐘)，請至 RunningHub 控制台確認狀態。");
+        } catch(e) {
+          setRhQueueStatus(""); alert("❌ RunningHub 失敗：\n" + e.message); setComfyProgress(0);
+        } finally { setIsComfyGenerating(false); }
       };
 
       const handleAddCustomChar = () => {
@@ -543,31 +614,45 @@ async function doUnlock(isAutoLogin = false) {
           </div>
 
           <div style={{maxWidth:1100,margin:"0 auto",padding:"16px 16px"}}>
-            <div style={{display:"flex", borderRadius:10, overflow:"hidden", marginBottom:8, border:`1px solid ${isCloudMode?C.cloud:C.orange}`}}>
-              <button style={{flex: 1, padding: 12, fontSize: 14, fontWeight: "bold", cursor: "pointer", border: "none", transition: "all 0.2s", background:isCloudMode?`${C.cloud}33`:"var(--card)", color:isCloudMode?C.cloud:"var(--subtext)"}} onClick={()=>setIsCloudMode(true)}>☁️ 在線平台安全模式 (Gemini Imagen 3) <br/><span style={{fontSize:10, fontWeight:"normal", opacity:0.8}}>自動掛載隱性浮雕微陰影咒語，逼出物理張力且防客訴</span></button>
-              <button style={{flex: 1, padding: 12, fontSize: 14, fontWeight: "bold", cursor: "pointer", border: "none", transition: "all 0.2s", background:!isCloudMode?`${C.orange}33`:"var(--card)", color:!isCloudMode?C.orange:"var(--subtext)"}} onClick={()=>setIsCloudMode(false)}>💻 本地算力模式 (RTX 5090 / ComfyUI) <br/><span style={{fontSize:10, fontWeight:"normal", opacity:0.8}}>解鎖極限物理張力、專屬人物 LoRA 與 API 直連算圖</span></button>
+            <div style={{display:"flex", borderRadius:10, overflow:"hidden", marginBottom:8, border:`1px solid ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.orange}`}}>
+              <button style={{flex:1,padding:10,fontSize:13,fontWeight:"bold",cursor:"pointer",border:"none",borderRight:"1px solid rgba(255,255,255,0.08)",transition:"all 0.2s",background:isCloudMode?`${C.cloud}33`:"var(--card)",color:isCloudMode?C.cloud:"var(--subtext)"}} onClick={()=>{setIsCloudMode(true);setIsRunningHubMode(false);}}>☁️ Gemini Imagen 3<br/><span style={{fontSize:9,fontWeight:"normal",opacity:0.8}}>安全模式·雲端破防咒語</span></button>
+              <button style={{flex:1,padding:10,fontSize:13,fontWeight:"bold",cursor:"pointer",border:"none",borderRight:"1px solid rgba(255,255,255,0.08)",transition:"all 0.2s",background:(!isCloudMode&&isRunningHubMode)?`${C.rhGold}33`:"var(--card)",color:(!isCloudMode&&isRunningHubMode)?C.rhGold:"var(--subtext)"}} onClick={()=>{setIsCloudMode(false);setIsRunningHubMode(true);}}>⚡ RunningHub Z-image<br/><span style={{fontSize:9,fontWeight:"normal",opacity:0.8}}>新王登基·雲端 ComfyUI 算力</span></button>
+              <button style={{flex:1,padding:10,fontSize:13,fontWeight:"bold",cursor:"pointer",border:"none",transition:"all 0.2s",background:(!isCloudMode&&!isRunningHubMode)?`${C.orange}33`:"var(--card)",color:(!isCloudMode&&!isRunningHubMode)?C.orange:"var(--subtext)"}} onClick={()=>{setIsCloudMode(false);setIsRunningHubMode(false);}}>💻 本地 ComfyUI<br/><span style={{fontSize:9,fontWeight:"normal",opacity:0.8}}>RTX 5090·極限物理張力</span></button>
             </div>
 
             {isCloudMode ? (
-              <div style={{marginBottom: 16, padding: "12px", background: `${C.cloud}1A`, border: `1px dashed ${C.cloud}`, borderRadius: 6, display: "flex", flexDirection: "column", gap: 10}}>
-                <div style={{fontSize: 11, color: C.cloud, display: "flex", alignItems: "center", gap: 8, fontWeight:"bold"}}>
-                  ☁️ 直接在線調用 Google Imagen 3 官方頂級生圖引擎 (無須跳轉)
+              <div style={{marginBottom:16,padding:"12px",background:`${C.cloud}1A`,border:`1px dashed ${C.cloud}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:11,color:C.cloud,fontWeight:"bold"}}>☁️ 直接在線調用 Google Imagen 3 官方頂級生圖引擎 (無須跳轉)</div>
+                <div style={{fontSize:12,color:C.cyan,display:"flex",alignItems:"center",gap:8,background:`${C.cyan}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.cyan}4D`}}>
+                  <label style={{fontWeight:"bold"}}>🔑 Google API Key:</label>
+                  <input type="password" value={cloudApiKey} onChange={e=>{setCloudApiKey(e.target.value);localStorage.setItem("ops_cloud_api_key",e.target.value);}} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"300px"}} placeholder="AIzaSy..." />
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:C.cloud,fontSize:11,textDecoration:"underline",marginLeft:"auto"}}>👉 免費申請金鑰</a>
                 </div>
-                <div style={{fontSize: 12, color: C.cyan, display: "flex", alignItems: "center", gap: 8, background: `${C.cyan}14`, padding: "8px 12px", borderRadius: "6px", border: `1px solid ${C.cyan}4D`}}>
-                  <label style={{fontWeight: "bold"}}>🔑 Google API Key:</label>
-                  <input type="password" value={cloudApiKey} onChange={e=>{setCloudApiKey(e.target.value); localStorage.setItem("ops_cloud_api_key", e.target.value);}} style={{background: "var(--bg)", border: `1px solid var(--border)`, color: "var(--text)", padding: "4px 8px", borderRadius: 4, width: "300px"}} placeholder="AIzaSy..." />
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:C.cloud, fontSize:11, textDecoration:"underline", marginLeft:"auto"}}>👉 免費申請金鑰</a>
+              </div>
+            ) : isRunningHubMode ? (
+              <div style={{marginBottom:16,padding:"12px",background:`${C.rhGold}12`,border:`1px dashed ${C.rhGold}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:11,color:C.rhGold,fontWeight:"bold"}}>⚡ Z-image 新王登基 — RunningHub 雲端 ComfyUI 算力</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  <div style={{fontSize:12,color:C.rhGold,display:"flex",alignItems:"center",gap:8,background:`${C.rhGold}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.rhGold}4D`,flex:"1 1 200px"}}>
+                    <label style={{fontWeight:"bold",whiteSpace:"nowrap"}}>🔑 API Key:</label>
+                    <input type="password" value={rhApiKey} onChange={e=>{setRhApiKey(e.target.value);localStorage.setItem("ops_rh_api_key",e.target.value);}} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"100%"}} placeholder="RunningHub API Key..." />
+                  </div>
+                  <div style={{fontSize:12,color:C.rhGold,display:"flex",alignItems:"center",gap:8,background:`${C.rhGold}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.rhGold}4D`,flex:"1 1 160px"}}>
+                    <label style={{fontWeight:"bold",whiteSpace:"nowrap"}}>🆔 工作流 ID:</label>
+                    <input type="text" value={rhWorkflowId} onChange={e=>{setRhWorkflowId(e.target.value);localStorage.setItem("ops_rh_workflow_id",e.target.value);}} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"100%"}} placeholder="如: 1234567" />
+                  </div>
+                  <a href="https://www.runninghub.cn" target="_blank" rel="noreferrer" style={{color:C.rhGold,fontSize:11,textDecoration:"underline",display:"flex",alignItems:"center"}}>👉 前往 RunningHub</a>
                 </div>
               </div>
             ) : (
-              <div style={{marginBottom: 16, padding: "12px", background: `${C.orange}1A`, border: `1px dashed ${C.orange}`, borderRadius: 6, display: "flex", flexDirection: "column", gap: 10}}>
-                <div style={{fontSize: 11, color: C.orange, display: "flex", alignItems: "center", gap: 8}}>
-                  <input type="checkbox" checked={useHardcoreTags} onChange={e=>setUseHardcoreTags(e.target.checked)} style={{accentColor: C.orange, cursor: "pointer"}} id="hardcore-toggle" />
-                  <label style={{cursor: "pointer", fontWeight: "bold"}} htmlFor="hardcore-toggle">🔥 啟用 Danbooru 底層暴力標籤 (強制突破大模型平滑限制，注入 1.5 高權重內衣浮雕與張力破壞參數)</label>
+              <div style={{marginBottom:16,padding:"12px",background:`${C.orange}1A`,border:`1px dashed ${C.orange}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:11,color:C.orange,display:"flex",alignItems:"center",gap:8}}>
+                  <input type="checkbox" checked={useHardcoreTags} onChange={e=>setUseHardcoreTags(e.target.checked)} style={{accentColor:C.orange,cursor:"pointer"}} id="hardcore-toggle" />
+                  <label style={{cursor:"pointer",fontWeight:"bold"}} htmlFor="hardcore-toggle">🔥 啟用 Danbooru 底層暴力標籤 (強制突破大模型平滑限制，注入 1.5 高權重內衣浮雕與張力破壞參數)</label>
                 </div>
-                <div style={{fontSize: 12, color: C.cyan, display: "flex", alignItems: "center", gap: 8, background: `${C.cyan}14`, padding: "8px 12px", borderRadius: "6px", border: `1px solid ${C.cyan}4D`}}>
-                  <label style={{fontWeight: "bold"}}>🔌 ComfyUI API 位置:</label>
-                  <input type="text" value={comfyUrl} onChange={e=>setComfyUrl(e.target.value)} style={{background: "var(--bg)", border: `1px solid var(--border)`, color: "var(--text)", padding: "4px 8px", borderRadius: 4, width: "250px"}} placeholder="http://127.0.0.1:8188" />
+                <div style={{fontSize:12,color:C.cyan,display:"flex",alignItems:"center",gap:8,background:`${C.cyan}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.cyan}4D`}}>
+                  <label style={{fontWeight:"bold"}}>🔌 ComfyUI API 位置:</label>
+                  <input type="text" value={comfyUrl} onChange={e=>setComfyUrl(e.target.value)} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"250px"}} placeholder="http://127.0.0.1:8188" />
                 </div>
               </div>
             )}
@@ -819,49 +904,121 @@ async function doUnlock(isAutoLogin = false) {
               </div>
             </div>
 
-            <button onClick={gen} disabled={loading} style={{width:"100%",padding:16,background:loading?"var(--border)":isCloudMode?`linear-gradient(135deg,${C.cloud},${C.cyan})`:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",borderRadius:10,color:"#fff",fontSize:16,fontWeight:800,letterSpacing:3,cursor:loading?"not-allowed":"pointer",marginBottom:12}}>
-              {loading?"⟳ 生成中...":isCloudMode?"◈ 產生雲端安全咒語 (隱性浮雕破防機制)":"◈ 產生本地硬核咒語 (注入 1.5 標籤破壁)"}
+            <button onClick={gen} disabled={loading} style={{width:"100%",padding:16,background:loading?"var(--border)":isCloudMode?`linear-gradient(135deg,${C.cloud},${C.cyan})`:isRunningHubMode?`linear-gradient(135deg,${C.rhGold},#c8860a)`:`linear-gradient(135deg,${C.cyan},${C.purple})`,border:"none",borderRadius:10,color:"#fff",fontSize:16,fontWeight:800,letterSpacing:3,cursor:loading?"not-allowed":"pointer",marginBottom:12}}>
+              {loading?"⟳ 生成中...":isCloudMode?"◈ 產生雲端安全咒語":isRunningHubMode?"⚡ 產生 Z-image 咒語 (RunningHub 新王登基)":"◈ 產生本地硬核咒語"}
             </button>
 
             {result&&<div>
-              <div style={{fontSize:11, color:isCloudMode?C.cloud:C.green, marginBottom:8, letterSpacing:1}}>{isCloudMode ? "☁️ 已啟用雲端破防模式：自動掛載隱性浮雕微陰影咒語" : "✔ 已自動植入: sks_salon, sks_je, IPD 1:1, 滿血物理張力詞"}</div>
-              <PromptCard title="＋ 正向提示詞 POSITIVE" titleColor={isCloudMode?C.cloud:C.green} content={prompts.pos} onExpand={lang=>handleExpand("pos",lang)} expanding={expandingState.pos_zh||expandingState.pos_en} onActionSend={(txt, lang) => isCloudMode ? handleCloudGenerate(txt) : handleComfySend(txt, prompts.neg[lang])} isCloudMode={isCloudMode} isComfyGenerating={isComfyGenerating} C={C}/>
+              <div style={{fontSize:11, color:isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green, marginBottom:8, letterSpacing:1}}>{isCloudMode ? "☁️ 已啟用雲端破防模式：自動掛載隱性浮雕微陰影咒語" : isRunningHubMode ? "⚡ Z-image 新王登基模式：點擊正向提示詞右側按鈕送至 RunningHub 算圖" : "✔ 已自動植入: sks_salon, sks_je, IPD 1:1, 滿血物理張力詞"}</div>
+              <PromptCard title="＋ 正向提示詞 POSITIVE" titleColor={isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green} content={prompts.pos} onExpand={lang=>handleExpand("pos",lang)} expanding={expandingState.pos_zh||expandingState.pos_en} onActionSend={(txt,lang)=>isCloudMode?handleCloudGenerate(txt):isRunningHubMode?handleRunningHubSend(txt):handleComfySend(txt,prompts.neg[lang])} isCloudMode={isCloudMode} isRunningHubMode={isRunningHubMode} isComfyGenerating={isComfyGenerating} C={C}/>
               <PromptCard title="－ 負向提示詞 NEGATIVE" titleColor={C.red} content={prompts.neg} C={C}/>
               {selChars.map(charId => {
                   const p = prompts[charId]; const ch = mergedChars[charId]; if (!p || (!p.zh && !p.en)) return null;
-                  return <PromptCard key={charId} title={`◆ ${ch.name}`} titleColor={ch.color} content={p} onExpand={lang=>handleExpand(charId,lang)} expanding={expandingState[`${charId}_zh`]||expandingState[`${charId}_en`]} onActionSend={(txt, lang) => isCloudMode ? handleCloudGenerate(txt) : handleComfySend(txt, prompts.neg[lang])} isCloudMode={isCloudMode} isComfyGenerating={isComfyGenerating} C={C}/>;
+                  return <PromptCard key={charId} title={`◆ ${ch.name}`} titleColor={ch.color} content={p} onExpand={lang=>handleExpand(charId,lang)} expanding={expandingState[`${charId}_zh`]||expandingState[`${charId}_en`]} onActionSend={(txt,lang)=>isCloudMode?handleCloudGenerate(txt):isRunningHubMode?handleRunningHubSend(txt):handleComfySend(txt,prompts.neg[lang])} isCloudMode={isCloudMode} isRunningHubMode={isRunningHubMode} isComfyGenerating={isComfyGenerating} C={C}/>;
               })}
               <CopyAll prompts={prompts} selChars={selChars} mergedChars={mergedChars} title={`${result.title_zh} / ${result.title_en}`} C={C}/>
             </div>}
 
             {/* 🎨 算圖結果動態顯示區域 */}
             {(isComfyGenerating || comfyImages.length > 0) && (
-              <div ref={comfyGalleryRef} style={{marginTop:24, padding:20, background:"var(--card)", border:`1px solid ${isCloudMode ? C.cloud : C.green}`, borderRadius:12, boxShadow:`0 10px 30px ${isCloudMode ? C.cloud : C.green}1A`}}>
-                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:16}}>
-                   <span style={{fontSize:20}}>{isCloudMode ? "☁️" : "🎨"}</span>
-                   <span style={{color:isCloudMode ? C.cloud : C.green, fontWeight:800, fontSize:15, letterSpacing:1}}>
-                     {isCloudMode ? "Google Imagen 3 雲端算圖引擎" : "ComfyUI 本地即時算圖引擎"}
-                   </span>
+              <div ref={comfyGalleryRef} style={{marginTop:24,padding:20,background:"var(--card)",border:`1px solid ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}`,borderRadius:12,boxShadow:`0 10px 30px ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}1A`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+                  <span style={{fontSize:20}}>{isCloudMode?"☁️":isRunningHubMode?"⚡":"🎨"}</span>
+                  <span style={{color:isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green,fontWeight:800,fontSize:15,letterSpacing:1}}>
+                    {isCloudMode?"Google Imagen 3 雲端算圖引擎":isRunningHubMode?"RunningHub Z-image 新王登基算圖引擎":"ComfyUI 本地即時算圖引擎"}
+                  </span>
                 </div>
                 {isComfyGenerating && (
-                  <div style={{marginBottom: 10}}>
-                    <div style={{display:"flex", justifyContent:"space-between", fontSize:12, color:"var(--subtext)", marginBottom:8, fontWeight:"bold"}}>
-                      <span style={{color: isCloudMode ? C.cloud : C.green}}>{isCloudMode ? "⚡ 正在呼叫 Google API，請稍候..." : "⚡ 正在與 RTX 5090 伺服器通訊，渲染處理中..."}</span>
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--subtext)",marginBottom:8,fontWeight:"bold"}}>
+                      <span style={{color:isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}}>
+                        {isCloudMode?"⚡ 正在呼叫 Google API...":isRunningHubMode?(rhQueueStatus||"⚡ 正在呼叫 RunningHub Z-image，每4秒輪詢..."):"⚡ 正在與 RTX 5090 伺服器通訊..."}
+                      </span>
                       <span>{comfyProgress}%</span>
                     </div>
-                    <div style={{width:"100%", height:8, background:`${isCloudMode ? C.cloud : C.green}1A`, borderRadius:4, overflow:"hidden", border:`1px solid ${isCloudMode ? C.cloud : C.green}4D`}}>
-                      <div style={{width:`${comfyProgress}%`, height:"100%", background:isCloudMode ? C.cloud : C.green, transition:"width 0.3s ease-out", boxShadow:`0 0 10px ${isCloudMode ? C.cloud : C.green}CC`}}></div>
+                    <div style={{width:"100%",height:8,background:`${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}1A`,borderRadius:4,overflow:"hidden",border:`1px solid ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}4D`}}>
+                      <div style={{width:`${comfyProgress}%`,height:"100%",background:isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green,transition:"width 0.3s ease-out"}}></div>
                     </div>
                   </div>
                 )}
                 {comfyImages.length > 0 && (
-                  <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:10}}>
-                    {comfyImages.map((src, idx) => (
-                      <div key={idx} className="comfy-image" style={{position:"relative", flexShrink:0}}>
-                         <img src={src} style={{height: 450, borderRadius:8, border:`2px solid var(--border)`, objectFit:"contain", background:"#000", boxShadow:"0 5px 15px rgba(0,0,0,0.5)", display:"block"} } alt={`Generated ${idx}`} />
-                         <div style={{position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.7)", padding:"4px 8px", borderRadius:4, color:isCloudMode ? C.cloud : C.green, fontSize:10, fontWeight:"bold", border:`1px solid ${isCloudMode ? C.cloud : C.green}`}}>✓ 渲染完成</div>
-                      </div>
-                    ))}
+                  <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:10}}>
+                    {comfyImages.map((src, idx) => {
+                      const ac = isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green;
+                      const isUrl = src.startsWith("http");
+                      const fn = `OPS_Z-image_${new Date().toISOString().slice(0,10)}_${idx+1}.png`;
+
+                      // 存檔：fetch→blob→objectURL→a.download，才能直接下載跨域圖
+                      const doSave = async (e) => {
+                        const btn = e.currentTarget;
+                        btn.textContent = "⟳ 下載中..."; btn.disabled = true;
+                        try {
+                          if (isUrl) {
+                            const res = await fetch(src);
+                            if (!res.ok) throw new Error("fetch failed");
+                            const blob = await res.blob();
+                            const u = URL.createObjectURL(blob);
+                            const a = document.createElement("a"); a.href = u; a.download = fn; a.click();
+                            setTimeout(() => URL.revokeObjectURL(u), 3000);
+                          } else {
+                            const a = document.createElement("a"); a.href = src; a.download = fn; a.click();
+                          }
+                          btn.textContent = "✓ 已存檔"; 
+                          setTimeout(() => { btn.textContent = "⬇ 存檔下載"; btn.disabled = false; }, 2000);
+                        } catch(err) {
+                          // CORS 擋住時 fallback 新分頁
+                          window.open(src, "_blank");
+                          btn.textContent = "⬇ 存檔下載"; btn.disabled = false;
+                        }
+                      };
+
+                      // 複製圖片：fetch→blob→ClipboardItem，可直接 Ctrl+V 貼圖
+                      const doCopy = async (e) => {
+                        const btn = e.currentTarget;
+                        btn.textContent = "⟳ 複製中..."; btn.disabled = true;
+                        try {
+                          let blob;
+                          if (isUrl) {
+                            const res = await fetch(src);
+                            if (!res.ok) throw new Error("fetch failed");
+                            blob = await res.blob();
+                          } else {
+                            const b64 = src.split(",")[1];
+                            const bin = atob(b64); const arr = new Uint8Array(bin.length);
+                            for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                            blob = new Blob([arr], {type:"image/png"});
+                          }
+                          await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
+                          setCopiedIdx(idx);
+                          btn.textContent = "✓ 已複製圖片";
+                          setTimeout(()=>{ setCopiedIdx(null); btn.textContent = "⎘ 複製圖片"; btn.disabled = false; }, 2500);
+                        } catch(err) {
+                          // CORS 或剪貼簿 API 失敗 → fallback 複製網址
+                          try { await navigator.clipboard.writeText(src); btn.textContent = "✓ 已複製網址(fallback)"; }
+                          catch(_) { btn.textContent = "⎘ 複製圖片"; }
+                          btn.disabled = false;
+                          setTimeout(()=>{ btn.textContent = "⎘ 複製圖片"; btn.disabled = false; }, 2500);
+                        }
+                      };
+
+                      return (
+                        <div key={idx} className="comfy-image" style={{flexShrink:0,display:"flex",flexDirection:"column"}}>
+                          <div style={{position:"relative"}}>
+                            <img src={src} style={{height:450,borderRadius:"8px 8px 0 0",border:`2px solid var(--border)`,borderBottom:"none",objectFit:"contain",background:"#000",boxShadow:"0 5px 15px rgba(0,0,0,0.5)",display:"block"}} alt={`Generated ${idx+1}`} />
+                            <div style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.75)",padding:"3px 8px",borderRadius:4,color:ac,fontSize:10,fontWeight:"bold",border:`1px solid ${ac}`}}>✓ 渲染完成</div>
+                          </div>
+                          <div style={{display:"flex",borderRadius:"0 0 8px 8px",overflow:"hidden",border:`2px solid var(--border)`,borderTop:`1px solid ${ac}40`}}>
+                            <button onClick={doCopy} style={{flex:1,padding:"9px 4px",background:copiedIdx===idx?`${ac}30`:"rgba(0,0,0,0.7)",border:"none",borderRight:`1px solid ${ac}30`,color:copiedIdx===idx?ac:"var(--text)",fontSize:12,cursor:"pointer",fontWeight:700,transition:"all 0.15s"}}>
+                              ⎘ 複製圖片
+                            </button>
+                            <button onClick={doSave} style={{flex:1,padding:"9px 4px",background:"rgba(0,0,0,0.7)",border:"none",color:"var(--text)",fontSize:12,cursor:"pointer",fontWeight:700,transition:"background 0.15s"}}
+                              onMouseEnter={e=>e.currentTarget.style.background=`${ac}22`}
+                              onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.7)"}
+                            >⬇ 存檔下載</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
