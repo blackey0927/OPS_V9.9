@@ -17,6 +17,22 @@
         event.preventDefault(); return false;
       }
     });
+  // ── 本地端自動旁路（file:// 或 localhost 直接進入，不需密碼）──
+  if(location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+    document.addEventListener('DOMContentLoaded', () => {
+      const lockUI = document.getElementById('lock-ui');
+      const appRoot = document.getElementById('ops-app-root');
+      if(lockUI) lockUI.style.display = 'none';
+      if(appRoot) appRoot.style.display = 'block';
+      setTimeout(()=>{ if(window.launchOPSApp) window.launchOPSApp(); }, 100);
+    });
+  }
+
+  // ── Airtable 追蹤設定（填入你的 Token 和 Base ID）──
+  window._OPS_AT_CONFIG = {
+    token:  "YOUR_AIRTABLE_PAT",
+    baseId: "YOUR_BASE_ID"
+  };
   </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -81,7 +97,8 @@
 
 <script>
 const FORMSPREE_ID = "mqeyppjp";
-const _k = () => ["36","53","6f","4a","7a","37","30","39","40","37"].map(x=>String.fromCharCode(parseInt(x,16))).join('');
+// OPS 系統專屬主金鑰（與 Prompt_V7_6 不同，密碼互不通用）
+const _k = () => ["36","53","6f","6a","5a","37","30","39","32","26"].map(x=>String.fromCharCode(parseInt(x,16))).join('');
 
 window.addEventListener('DOMContentLoaded', () => {
   if (window.OPS_DB && Object.keys(window.OPS_DB).length > 0) {
@@ -161,6 +178,31 @@ async function doUnlock(isAutoLogin = false) {
     localStorage.setItem('ops_user_email', email);
     localStorage.setItem('ops_user_pw', pw);
 
+    // ── Airtable 追蹤記錄（靜默執行）──
+    (async () => {
+      try {
+        const AT = window._OPS_AT_CONFIG;
+        if(!AT || !AT.token || !AT.baseId || AT.token === 'YOUR_AIRTABLE_PAT') return;
+        const base = `https://api.airtable.com/v0/${AT.baseId}`;
+        const hdr  = { 'Authorization':`Bearer ${AT.token}`, 'Content-Type':'application/json' };
+        const now  = new Date().toISOString();
+        const dev  = navigator.userAgent.split(' ').slice(-3).join(' ');
+        await fetch(`${base}/unlock_logs`, {
+          method:'POST', headers: hdr,
+          body: JSON.stringify({ fields:{ email, unlocked_at: now, device: dev, system: 'OPS' } })
+        });
+        const search = await fetch(`${base}/authorized_users?filterByFormula=${encodeURIComponent(`{email}="${email}"`)}`, { headers: hdr });
+        const data = await search.json();
+        if(data.records?.length > 0){
+          const rec = data.records[0];
+          await fetch(`${base}/authorized_users/${rec.id}`, {
+            method:'PATCH', headers: hdr,
+            body: JSON.stringify({ fields:{ use_count: (rec.fields.use_count||0)+1, last_use: now }})
+          });
+        }
+      } catch(e){ /* 靜默失敗 */ }
+    })();
+
     document.getElementById('lock-ui').style.display = 'none';
     document.getElementById('ops-app-root').style.display = 'block';
     
@@ -201,6 +243,73 @@ async function doUnlock(isAutoLogin = false) {
     function Btn({children, onClick, disabled, style={}, color}) { return <button onClick={onClick} disabled={disabled} style={{background:`${color}18`,border:`1px solid ${color}`,color:color,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:disabled?"not-allowed":"pointer",fontWeight:700,opacity:disabled?0.5:1,transition:"all 0.2s",...style}}>{children}</button>; }
     function SelBtn({item, selected, onSelect, color}) { const sel = selected === item.id; return <button onClick={()=>onSelect(item.id)} title={item.en||""} style={{background:sel?`${color}22`:"var(--card)", border:`1px solid ${sel?color:"var(--border)"}`, color:sel?color:"var(--text)", padding:"4px 9px", borderRadius:13, fontSize:11, cursor:"pointer", fontWeight:sel?700:400}}>{sel?"✓ ":""}{item.label}</button>; }
     function DropSelect({ items, value, onChange, accent, placeholder = "── 請選擇 ──" }) { const selected = items.find(i => i.id === value); return ( <div className="ops-select-wrap"> <select className="ops-select" value={value || ""} onChange={e => onChange(e.target.value || null)} style={{ border: `1px solid ${value ? accent : "var(--border)"}`, color: value ? accent : "var(--text)" }}> <option value="">{placeholder}</option>{items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)} </select> {selected && <div className="ops-selected-badge" style={{ background: `${accent}0f`, border: `1px solid ${accent}25`, color: `${accent}bb` }}>{selected.zh || selected.en || selected.label}</div>} </div> ); }
+    // ✏️ 自訂提示詞直送元件
+    function CustomPromptSender({ isCloudMode, isRunningHubMode, isComfyGenerating, onSendComfy, onSendRH, onSendCloud, negPrompt, C }) {
+      const [customPos, setCustomPos] = React.useState("");
+      const [customNeg, setCustomNeg] = React.useState("");
+      const [isOpen, setIsOpen] = React.useState(false);
+
+      const acColor = isCloudMode ? C.cloud : isRunningHubMode ? C.rhGold : C.green;
+      const btnLabel = isComfyGenerating ? "⏳ 算圖中..." : isCloudMode ? "☁️ 雲端 Imagen 送出" : isRunningHubMode ? "⚡ 送至 RunningHub" : "🚀 送至 ComfyUI";
+
+      const handleSend = () => {
+        if (!customPos.trim()) return alert("請輸入提示詞！");
+        const negText = customNeg.trim() || (negPrompt && (negPrompt.en || negPrompt.zh)) || "";
+        if (isCloudMode) onSendCloud(customPos);
+        else if (isRunningHubMode) onSendRH(customPos);
+        else onSendComfy(customPos, negText);
+      };
+
+      return (
+        <div style={{marginTop:16, border:`1px solid ${acColor}44`, borderRadius:12, overflow:"hidden"}}>
+          <div
+            onClick={() => setIsOpen(p => !p)}
+            style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px", background:`${acColor}0d`, cursor:"pointer", userSelect:"none"}}
+          >
+            <span style={{color:acColor, fontWeight:"bold", fontSize:13, letterSpacing:1}}>✏️ 自訂提示詞直送</span>
+            <span style={{color:acColor, fontSize:12, opacity:0.7}}>{isOpen ? "▲ 收起" : "▼ 展開"}</span>
+          </div>
+          {isOpen && (
+            <div style={{padding:"16px", background:"var(--card)"}}>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11, color:acColor, letterSpacing:1, marginBottom:6}}>＋ POSITIVE</div>
+                <textarea
+                  value={customPos}
+                  onChange={e => setCustomPos(e.target.value)}
+                  placeholder=""
+                  rows={5}
+                  style={{width:"100%", background:"var(--inputBg)", border:`1.5px solid ${acColor}55`, borderRadius:8, color:"var(--text)", fontSize:13, padding:"10px 12px", resize:"vertical", outline:"none", boxSizing:"border-box", fontFamily:"monospace", lineHeight:1.6}}
+                />
+              </div>
+              {!isCloudMode && (
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:11, color:C.red, letterSpacing:1, marginBottom:6}}>－ NEGATIVE（選填）</div>
+                  <textarea
+                    value={customNeg}
+                    onChange={e => setCustomNeg(e.target.value)}
+                    placeholder=""
+                    rows={2}
+                    style={{width:"100%", background:"var(--inputBg)", border:`1.5px solid ${C.red}44`, borderRadius:8, color:"var(--text)", fontSize:12, padding:"8px 12px", resize:"vertical", outline:"none", boxSizing:"border-box", fontFamily:"monospace", lineHeight:1.6}}
+                  />
+                </div>
+              )}
+              <div style={{display:"flex", gap:8, justifyContent:"flex-end"}}>
+                <button
+                  onClick={() => { setCustomPos(""); setCustomNeg(""); }}
+                  style={{padding:"6px 14px", background:"transparent", border:`1px solid var(--border)`, color:"var(--subtext)", borderRadius:7, fontSize:12, cursor:"pointer"}}
+                >清除</button>
+                <button
+                  onClick={handleSend}
+                  disabled={isComfyGenerating}
+                  style={{padding:"8px 20px", background:`${acColor}22`, border:`1.5px solid ${acColor}`, color:acColor, borderRadius:7, fontSize:13, fontWeight:"bold", cursor:isComfyGenerating?"not-allowed":"pointer", opacity:isComfyGenerating?0.6:1}}
+                >{btnLabel}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     function PromptCard({title, titleColor, content, onExpand, expanding, onActionSend, isCloudMode, isRunningHubMode, isComfyGenerating, C}) {
       const [tab, setTab] = useState("en"); const [copied, setCopied] = useState(false); const txt = tab === "zh" ? (content ? content.zh : "") : (content ? content.en : "");
       const handleCopy = () => { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 2000); };
@@ -919,6 +1028,18 @@ async function doUnlock(isAutoLogin = false) {
               <CopyAll prompts={prompts} selChars={selChars} mergedChars={mergedChars} title={`${result.title_zh} / ${result.title_en}`} C={C}/>
             </div>}
 
+            {/* ✏️ 自訂提示詞直送區 */}
+            <CustomPromptSender
+              isCloudMode={isCloudMode}
+              isRunningHubMode={isRunningHubMode}
+              isComfyGenerating={isComfyGenerating}
+              onSendComfy={handleComfySend}
+              onSendRH={handleRunningHubSend}
+              onSendCloud={handleCloudGenerate}
+              negPrompt={prompts.neg}
+              C={C}
+            />
+
             {/* 🎨 算圖結果動態顯示區域 */}
             {(isComfyGenerating || comfyImages.length > 0) && (
               <div ref={comfyGalleryRef} style={{marginTop:24,padding:20,background:"var(--card)",border:`1px solid ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}`,borderRadius:12,boxShadow:`0 10px 30px ${isCloudMode?C.cloud:isRunningHubMode?C.rhGold:C.green}1A`}}>
@@ -948,27 +1069,53 @@ async function doUnlock(isAutoLogin = false) {
                       const isUrl = src.startsWith("http");
                       const fn = `OPS_Z-image_${new Date().toISOString().slice(0,10)}_${idx+1}.png`;
 
-                      // 存檔：fetch→blob→objectURL→a.download，才能直接下載跨域圖
+                      // 存檔：手機用 Web Share API，桌機用 a.download
                       const doSave = async (e) => {
                         const btn = e.currentTarget;
-                        btn.textContent = "⟳ 下載中..."; btn.disabled = true;
+                        btn.textContent = "⟳ 處理中..."; btn.disabled = true;
                         try {
+                          // 先取得 blob
+                          let blob;
                           if (isUrl) {
                             const res = await fetch(src);
                             if (!res.ok) throw new Error("fetch failed");
-                            const blob = await res.blob();
-                            const u = URL.createObjectURL(blob);
-                            const a = document.createElement("a"); a.href = u; a.download = fn; a.click();
-                            setTimeout(() => URL.revokeObjectURL(u), 3000);
+                            blob = await res.blob();
                           } else {
-                            const a = document.createElement("a"); a.href = src; a.download = fn; a.click();
+                            const b64 = src.split(",")[1];
+                            const bin = atob(b64); const arr = new Uint8Array(bin.length);
+                            for (let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+                            blob = new Blob([arr], {type:"image/png"});
                           }
-                          btn.textContent = "✓ 已存檔"; 
-                          setTimeout(() => { btn.textContent = "⬇ 存檔下載"; btn.disabled = false; }, 2000);
+
+                          const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+                          // 手機：優先用 Web Share API（直接存相簿）
+                          if (isMobile && navigator.canShare) {
+                            const file = new File([blob], fn, {type: "image/png"});
+                            if (navigator.canShare({files:[file]})) {
+                              await navigator.share({
+                                files: [file],
+                                title: "OPS 出圖",
+                              });
+                              btn.textContent = "✓ 已分享";
+                              setTimeout(()=>{ btn.textContent = "⬇ 存圖"; btn.disabled = false; }, 2000);
+                              return;
+                            }
+                          }
+
+                          // 桌機 or 手機不支援 Share：用 a.download
+                          const u = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = u; a.download = fn; a.click();
+                          setTimeout(()=> URL.revokeObjectURL(u), 3000);
+                          btn.textContent = "✓ 已存檔";
+                          setTimeout(()=>{ btn.textContent = "⬇ 存圖"; btn.disabled = false; }, 2000);
+
                         } catch(err) {
-                          // CORS 擋住時 fallback 新分頁
+                          // 最終 fallback：新分頁開啟長按存圖
                           window.open(src, "_blank");
-                          btn.textContent = "⬇ 存檔下載"; btn.disabled = false;
+                          btn.textContent = "⬇ 存圖";
+                          btn.disabled = false;
                         }
                       };
 
@@ -1014,7 +1161,7 @@ async function doUnlock(isAutoLogin = false) {
                             <button onClick={doSave} style={{flex:1,padding:"9px 4px",background:"rgba(0,0,0,0.7)",border:"none",color:"var(--text)",fontSize:12,cursor:"pointer",fontWeight:700,transition:"background 0.15s"}}
                               onMouseEnter={e=>e.currentTarget.style.background=`${ac}22`}
                               onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,0.7)"}
-                            >⬇ 存檔下載</button>
+                            >{/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? "⬆ 分享/存圖" : "⬇ 存檔下載"}</button>
                           </div>
                         </div>
                       );
