@@ -347,8 +347,22 @@ async function doUnlock(isAutoLogin = false) {
           <div style={{display:"flex",gap:5}}>
             {["en","zh"].map(t=><button key={t} onClick={()=>setTab(t)} style={{padding:"2px 8px",fontSize:11,border:"none",background:tab===t?`${titleColor}22`:"transparent",color:tab===t?titleColor:"var(--subtext)",cursor:"pointer",borderRadius:4,fontWeight:tab===t?700:400}}>{t.toUpperCase()}</button>)}
             {onExpand&&<Btn onClick={()=>onExpand(tab)} disabled={expanding} color={C.cyan} style={{padding:"2px 8px",fontSize:11}}>{expanding?"⟳ 擴寫...":"✦ AI智能擴寫"}</Btn>}
-            {onActionSend && <Btn onClick={() => onActionSend(txt, tab)} disabled={isComfyGenerating} color={acSend} style={{padding:"2px 8px",fontSize:11, background:`${acSend}26`}}>{isComfyGenerating ? "⏳ 算圖中..." : (isCloudMode ? `☁️ 雲端 Imagen 算圖` : isRunningHubMode ? `⚡ 送至 RunningHub` : `🚀 送至 ComfyUI`)}</Btn>}
-            <Btn onClick={handleCopy} color={copied ? C.green : titleColor} style={{padding:"2px 8px",fontSize:11}}>{copied ? "✓ 已複製" : "⎘ 複製"}</Btn>
+            
+            {/* 非雲端模式：保留原本的 API 送出按鈕 */}
+            {!isCloudMode && onActionSend && <Btn onClick={() => onActionSend(txt, tab)} disabled={isComfyGenerating} color={acSend} style={{padding:"2px 8px",fontSize:11, background:`${acSend}26`}}>{isComfyGenerating ? "⏳ 算圖中..." : (isRunningHubMode ? `⚡ 送至 RunningHub` : `🚀 送至 ComfyUI`)}</Btn>}
+            
+            {/* 雲端模式：專屬的一鍵複製與跳轉按鈕 */}
+            {isCloudMode && (
+              <Btn 
+                onClick={() => { navigator.clipboard.writeText(txt); window.open("https://gemini.google.com/app", "_blank"); }} 
+                color={C.cloud} 
+                style={{padding:"2px 8px",fontSize:11, background:`${C.cloud}26`}}
+              >
+                ⎘ 複製並開啟 Gemini
+              </Btn>
+            )}
+
+            <Btn onClick={handleCopy} color={copied ? C.green : titleColor} style={{padding:"2px 8px",fontSize:11}}>{copied ? "✓ 已複製" : "⎘ 純複製"}</Btn>
           </div>
         </div>
         <div style={{padding:"10px 12px",fontSize:13,fontFamily:"monospace",lineHeight:1.7,color:"var(--text)",maxHeight:160,overflowY:"auto",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{txt}</div>
@@ -816,18 +830,19 @@ async function doUnlock(isAutoLogin = false) {
 
             {isCloudMode ? (
               <div style={{marginBottom:16,padding:"12px",background:`${C.cloud}1A`,border:`1px dashed ${C.cloud}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{fontSize:11,color:C.cloud,fontWeight:"bold"}}>☁️ 直接在線調用 Google Imagen 3 官方頂級生圖引擎 (無須跳轉)</div>
-                <div style={{fontSize:12,color:C.cyan,display:"flex",alignItems:"center",gap:8,background:`${C.cyan}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.cyan}4D`}}>
-                  <label style={{fontWeight:"bold"}}>🔑 Google API Key:</label>
-                  <input type="password" value={cloudApiKey} onChange={e=>{setCloudApiKey(e.target.value);localStorage.setItem("ops_cloud_api_key",e.target.value);}} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"300px"}} placeholder="AIzaSy..." />
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color:C.cloud,fontSize:11,textDecoration:"underline",marginLeft:"auto"}}>👉 免費申請金鑰</a>
+                <div style={{fontSize:12,color:C.cloud,fontWeight:"bold",display:"flex",alignItems:"center",gap:8}}>
+                  <span>☁️ Gemini 官方 Web/App 跳轉模式</span>
+                  <span style={{fontSize:10,color:C.cloud,background:`${C.cloud}26`,padding:"2px 6px",borderRadius:4}}>安全免金鑰</span>
+                </div>
+                <div style={{fontSize:11,color:"var(--text)",lineHeight:1.6}}>
+                  系統將為您自動掛載隱性浮雕微陰影等破防咒語。點擊下方生成後，按下提示詞右上方的 <b style={{color:C.cloud}}>「⎘ 複製並開啟 Gemini」</b>，即可直接在官方介面貼上生圖！
                 </div>
               </div>
             ) : isRunningHubMode ? (
               <div style={{marginBottom:16,padding:"12px",background:`${C.rhGold}12`,border:`1px dashed ${C.rhGold}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
                 <div style={{fontSize:11,color:C.rhGold,fontWeight:"bold",display:"flex",justifyContent:"space-between"}}>
                   <span>⚡ Z-image 新王登基 — RunningHub 雲端 ComfyUI 算力</span>
-                  <a href="https://www.runninghub.ai" target="_blank" rel="noreferrer" style={{color:C.rhGold,textDecoration:"underline"}}>👉 前往 RunningHub</a>
+                  <a href="https://www.runninghub.cn" target="_blank" rel="noreferrer" style={{color:C.rhGold,textDecoration:"underline"}}>👉 前往 RunningHub</a>
                 </div>
                 
                 <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
