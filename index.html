@@ -718,10 +718,34 @@ async function doUnlock(isAutoLogin = false) {
             if (z) chunksZH.push(z); if (e) chunksEN.push(e);
         });
 
+        // V10.0 動態防雷負面詞庫 (根據景別自動注入)
+        let dynamicNegZH = []; let dynamicNegEN = [];
+
+        // --- V10.0 智能景別與權重對抗引擎 ---
         if (selGeminiBase.length > 0) {
-            const basesZH = selGeminiBase.map(id => GEMINI_BASE.find(x=>x.id===id).zh).join("，");
-            const basesEN = selGeminiBase.map(id => GEMINI_BASE.find(x=>x.id===id).en).join(", ");
-            chunksZH.push(basesZH); chunksEN.push(basesEN);
+            let basesZH = []; let basesEN = [];
+            selGeminiBase.forEach(id => {
+                const item = GEMINI_BASE.find(x=>x.id===id);
+                if (id === "gb4") { // 全身 (強制拉遠，補上鞋子錨點)
+                    basesZH.push("(全身遠景，包含全身與完整鞋子:1.5)");
+                    basesEN.push("(full body shot, showing entire body from head to feet, including shoes:1.5)");
+                    dynamicNegZH.push("(特寫，半身照，切腿，畫面外，鏡頭拉近:1.5)");
+                    dynamicNegEN.push("(close up, half body, cowboy shot, portrait, cropped legs, out of frame:1.5)");
+                } else if (id === "gb5") { // 半身 (強制留住頭部與手部)
+                    basesZH.push("(半身照，牛仔鏡頭，包含完整頭部與手部:1.3)");
+                    basesEN.push("(cowboy shot, medium shot, upper body:1.3)");
+                    dynamicNegZH.push("(切頭，畫面外，純臉部特寫:1.4)");
+                    dynamicNegEN.push("(cut off head, out of frame, extreme face close up:1.4)");
+                } else if (id === "gb6") { // 大頭照 (極致臉部細節)
+                    basesZH.push("(臉部特寫，極致臉部細節聚焦:1.4)");
+                    basesEN.push("(close-up headshot, extreme face focus:1.4)");
+                    dynamicNegZH.push("(全身，距離遙遠，看不清臉:1.4)");
+                    dynamicNegEN.push("(full body, cowboy shot, distant:1.4)");
+                } else {
+                    basesZH.push(item.zh); basesEN.push(item.en);
+                }
+            });
+            chunksZH.push(basesZH.join("，")); chunksEN.push(basesEN.join(", "));
         }
         if (selGeminiLens) { const lens = GEMINI_LENS.find(x=>x.id===selGeminiLens); if(lens) { chunksZH.push(lens.zh); chunksEN.push(lens.en); } }
 
@@ -782,14 +806,29 @@ async function doUnlock(isAutoLogin = false) {
 
         setTimeout(() => {
           setResult({ title_zh: f ? f.label : "自定義組合", title_en: "Custom Styling" });
+          
+          // 組合基礎負向詞與動態防雷詞
+          const baseNegEN = isCloudMode 
+            ? "3d render, digital modeling, painting, illustration, anime, blurry, deformed, artificial lighting, sheer, transparent, mesh" 
+            : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric";
+          const baseNegZH = isCloudMode 
+            ? "3D, 數位建模, 繪畫, 插畫, 動漫, 模糊, 變形, 不自然的光線, 透明, 薄紗" 
+            : baseNegEN;
+          
+          const finalNegEN = dynamicNegEN.length > 0 ? `${dynamicNegEN.join(", ")}, ${baseNegEN}` : baseNegEN;
+          const finalNegZH = dynamicNegZH.length > 0 ? `${dynamicNegZH.join("，")}，${baseNegZH}` : baseNegZH;
+
           const genPrompts = {
             pos: { zh: finalZH, en: finalEN }, 
-            neg: { 
-              zh: isCloudMode ? "3D, 數位建模, 繪畫, 插畫, 動漫, 模糊, 變形, 不自然的光線, 透明, 薄紗" : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric", 
-              en: isCloudMode ? "3d render, digital modeling, painting, illustration, anime, blurry, deformed, artificial lighting, sheer, transparent, mesh" : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric" 
-            }
+            neg: { zh: finalNegZH, en: finalNegEN }
           };
-          if (!isCloudMode) { selChars.forEach(charId => { const ch = mergedChars[charId]; if (ch) genPrompts[charId] = { zh: `[${ch.name}角色設定: ${ch.zh}]，${finalZH}`, en: `[Character ${ch.name}: ${ch.en}], ${finalEN}` }; }); }
+          
+          if (!isCloudMode) { 
+            selChars.forEach(charId => { 
+              const ch = mergedChars[charId]; 
+              if (ch) genPrompts[charId] = { zh: `[${ch.name}角色設定: ${ch.zh}]，${finalZH}`, en: `(Character ${ch.name}: ${ch.en}:1.15), ${finalEN}` }; 
+            }); 
+          }
           setPrompts(genPrompts); setLoading(false);
         }, 150);
       };
