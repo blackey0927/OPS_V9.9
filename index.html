@@ -224,6 +224,7 @@ async function doUnlock(isAutoLogin = false) {
     const MAKEUP_DB = DB.MAKEUP || []; const FABRIC_DB = DB.FABRIC || []; const BOTTOM_DB = DB.BOTTOM || [];
     const LIGHT_DB = DB.LIGHT || []; const ACC_DB = DB.ACC || []; const ACC_GROUPS = DB.ACC_GROUPS || [];
     const EMOTION_DB = DB.EMOTION || []; const POSE_DB = DB.POSE || []; const SCENE_DB = DB.SCENE || [];
+    const SCENE_CATS_DB = DB.SCENE_CATS || [];
     const BRA_DB = DB.BRA || []; const BASE_CHARS = DB.CHARS || {};
     const DIRECTION_DB = DB.DIRECTION || { ref_prefix:[], ref_core:[], ref_suffix:[], ratio:[], person_size:[], expression:[], comp_rule:[], comp_bg:[] };
     const OUTFIT_STYLE_DB = DB.OUTFIT_STYLE || []; const HAIR_DB = DB.HAIR || []; const AI_GEN = DB.AI_GEN || {};
@@ -433,6 +434,7 @@ async function doUnlock(isAutoLogin = false) {
       
       const [selChars,setSelChars]=useState(() => Object.keys(BASE_CHARS).length > 0 ? [Object.keys(BASE_CHARS)[0]] : []);
       const [lightContrast, setLightContrast] = useState(50);
+      const [sceneCat, setSceneCat] = useState("all");
 
       const [refOutfit, setRefOutfit] = useState(false); const [refPose, setRefPose] = useState(false); 
       const [refScene, setRefScene] = useState(false); const [refCharacter, setRefCharacter] = useState(false);
@@ -457,7 +459,8 @@ async function doUnlock(isAutoLogin = false) {
       const allP = [...POSE_DB, ...customDB.pose]; const allM = [...MAKEUP_DB, ...customDB.makeup];
       const allL = [...LIGHT_DB, ...customDB.light]; const allA = [...ACC_DB, ...customDB.acc];
       const allEmotion = [...EMOTION_DB]; 
-      const sceneList = [...SCENE_DB.map((s,i) => { const parts = s.split(" — "); return { id: `s${i}`, label: parts[0], zh: parts[0], en: parts[1] || parts[0] }; }), ...customDB.scene];
+      const sceneList = [...SCENE_DB, ...customDB.scene];
+      const filteredSceneList = sceneCat === "all" ? sceneList : sceneList.filter(s => s.cat === sceneCat);
       const allExpr = [...DIRECTION_DB.expression, ...customExpr]; const allCompRule = [...DIRECTION_DB.comp_rule, ...customComp];
       const pick = arr => (arr && arr.length > 0) ? arr[Math.floor(Math.random() * arr.length)] : null;
 
@@ -665,7 +668,13 @@ async function doUnlock(isAutoLogin = false) {
         if (cat === 'acc') setSelA(p => [...p, newItem.id]);
       };
 
-      const drawRandomTensions = () => setSelBra([...BRA_DB].sort(() => 0.5 - Math.random()).slice(0, 5).map(item => `bra${BRA_DB.indexOf(item)}`));
+      const drawRandomTensions = () => {
+        const pool = BRA_DB.filter((b,i) => {
+          if(typeof window !== 'undefined' && window.__braCat && window.__braCat !== 'all') return b.cat === window.__braCat;
+          return true;
+        });
+        setSelBra([...pool].sort(()=>0.5-Math.random()).slice(0,5).map(item=>`bra${BRA_DB.indexOf(item)}`));
+      };
       const handleExpand = (type, lang) => { const key = `${type}_${lang}`; setExpandingState(prev => ({...prev, [key]: true})); setTimeout(() => { setPrompts(prev => ({ ...prev, [type]: { ...prev[type], [lang]: simulateAIExpand(prev[type][lang], lang) } })); setExpandingState(prev => ({...prev, [key]: false})); }, 600); };
 
       const gen = async () => {
@@ -750,12 +759,30 @@ async function doUnlock(isAutoLogin = false) {
         if (selGeminiLens) { const lens = GEMINI_LENS.find(x=>x.id===selGeminiLens); if(lens) { chunksZH.push(lens.zh); chunksEN.push(lens.en); } }
 
         chunksZH.push(coreDNA_ZH); chunksEN.push(coreDNA_EN);
-        if (m && !refCheerMakeup) { chunksZH.push(`[妝容: ${m.zh || m.label}]`); chunksEN.push(`[makeup: ${m.en}]`); }
-        if (selHairStyle) { const hs = HAIR_DB.find(x=>x.id===selHairStyle); chunksZH.push(`[髮型設計: ${hs.zh}]`); chunksEN.push(`[hair design: ${hs.en}]`); }
-        if (selHairColor) { const hc = HAIR_DB.find(x=>x.id===selHairColor); chunksZH.push(`[髮色渲染: ${hc.zh}]`); chunksEN.push(`[hair color: ${hc.en}]`); }
+        
+        // V10.0 雙引擎架構：雲端保留 [標籤]，本地端轉化為 (權重:1.2) 防止被服裝細節吃掉
+        if (m && !refCheerMakeup) { 
+            chunksZH.push(isCloudMode ? `[妝容: ${m.zh || m.label}]` : `(${m.zh || m.label}:1.15)`); 
+            chunksEN.push(isCloudMode ? `[makeup: ${m.en}]` : `(${m.en}:1.15)`); 
+        }
+        if (selHairStyle) { 
+            const hs = HAIR_DB.find(x=>x.id===selHairStyle); 
+            chunksZH.push(isCloudMode ? `[髮型設計: ${hs.zh}]` : `(${hs.zh}:1.2)`); 
+            chunksEN.push(isCloudMode ? `[hair design: ${hs.en}]` : `(${hs.en}:1.2)`); 
+        }
+        if (selHairColor) { 
+            const hc = HAIR_DB.find(x=>x.id===selHairColor); 
+            chunksZH.push(isCloudMode ? `[髮色渲染: ${hc.zh}]` : `(${hc.zh}:1.2)`); 
+            chunksEN.push(isCloudMode ? `[hair color: ${hc.en}]` : `(${hc.en}:1.2)`); 
+        }
+        
         if (f) { chunksZH.push(`穿著 ${f.zh || f.label}`); chunksEN.push(`wearing ${f.en}`); }
         if (b) { chunksZH.push(`搭配 ${b.zh || b.label}`); chunksEN.push(`with ${b.en}`); }
-        if (accZH) { chunksZH.push(`[飾品: ${accZH}]`); } if (accEN) { chunksEN.push(`[accessories: ${accEN}]`); }
+        
+        if (accZH) { 
+            chunksZH.push(isCloudMode ? `[飾品: ${accZH}]` : `(${accZH}:1.1)`); 
+            chunksEN.push(isCloudMode ? `[accessories: ${accEN}]` : `(${accEN}:1.1)`); 
+        }
 
         if (braResolved.length > 0) {
           if (isCloudMode) {
@@ -795,9 +822,19 @@ async function doUnlock(isAutoLogin = false) {
         if (contrastTagZH) { chunksZH.push(contrastTagZH); chunksEN.push(contrastTagEN); }
 
         const emotionItems = allEmotion.filter(e => selEmotion.includes(e.id));
-        if (emotionItems.length > 0) { chunksZH.push(`[情緒細節: ${emotionItems.map(e => e.zh).join("，")}]`); chunksEN.push(`[emotional detail: ${emotionItems.map(e => e.en).join(", ")}]`); }
+        if (emotionItems.length > 0) { 
+            const eZH = emotionItems.map(e => e.zh).join("，"); const eEN = emotionItems.map(e => e.en).join(", ");
+            chunksZH.push(isCloudMode ? `[情緒細節: ${eZH}]` : `(${eZH}:1.1)`); 
+            chunksEN.push(isCloudMode ? `[emotional detail: ${eEN}]` : `(${eEN}:1.1)`); 
+        }
 
-        if (selOutfitStyle) { const os = OUTFIT_STYLE_DB.find(o => o.id === selOutfitStyle); if (os) { chunksZH.push(`[完整造型靈感: ${os.zh}]`); chunksEN.push(`[complete outfit inspiration: ${os.en}]`); } }
+        if (selOutfitStyle) { 
+            const os = OUTFIT_STYLE_DB.find(o => o.id === selOutfitStyle); 
+            if (os) { 
+                chunksZH.push(isCloudMode ? `[完整造型靈感: ${os.zh}]` : `(${os.zh}:1.1)`); 
+                chunksEN.push(isCloudMode ? `[complete outfit inspiration: ${os.en}]` : `(${os.en}:1.1)`); 
+            } 
+        }
         
         chunksZH.push(motion_ZH); chunksEN.push(motion_EN);
 
@@ -807,7 +844,7 @@ async function doUnlock(isAutoLogin = false) {
         setTimeout(() => {
           setResult({ title_zh: f ? f.label : "自定義組合", title_en: "Custom Styling" });
           
-          // 組合基礎負向詞與動態防雷詞
+          // 組合基礎負向詞與動態防雷詞 (保留您之前的優化)
           const baseNegEN = isCloudMode 
             ? "3d render, digital modeling, painting, illustration, anime, blurry, deformed, artificial lighting, sheer, transparent, mesh" 
             : "sheer, transparent, translucent, see-through, worst quality, low quality, bad anatomy, deformed, mutated, text, watermark, illustration, 3d render, plastic skin, anime, cartoon, artificial lighting, loose clothing, flat fabric";
@@ -815,18 +852,22 @@ async function doUnlock(isAutoLogin = false) {
             ? "3D, 數位建模, 繪畫, 插畫, 動漫, 模糊, 變形, 不自然的光線, 透明, 薄紗" 
             : baseNegEN;
           
-          const finalNegEN = dynamicNegEN.length > 0 ? `${dynamicNegEN.join(", ")}, ${baseNegEN}` : baseNegEN;
-          const finalNegZH = dynamicNegZH.length > 0 ? `${dynamicNegZH.join("，")}，${baseNegZH}` : baseNegZH;
+          const finalNegEN = (typeof dynamicNegEN !== 'undefined' && dynamicNegEN.length > 0) ? `${dynamicNegEN.join(", ")}, ${baseNegEN}` : baseNegEN;
+          const finalNegZH = (typeof dynamicNegZH !== 'undefined' && dynamicNegZH.length > 0) ? `${dynamicNegZH.join("，")}，${baseNegZH}` : baseNegZH;
 
           const genPrompts = {
             pos: { zh: finalZH, en: finalEN }, 
             neg: { zh: finalNegZH, en: finalNegEN }
           };
           
+          // V10.0: 角色卡徹底捨棄 [ ]，轉化為 CLIP 友善的高權重 ()
           if (!isCloudMode) { 
             selChars.forEach(charId => { 
               const ch = mergedChars[charId]; 
-              if (ch) genPrompts[charId] = { zh: `[${ch.name}角色設定: ${ch.zh}]，${finalZH}`, en: `(Character ${ch.name}: ${ch.en}:1.15), ${finalEN}` }; 
+              if (ch) genPrompts[charId] = { 
+                zh: `(${ch.name}，${ch.zh}:1.2)，${finalZH}`, 
+                en: `(${ch.name}, ${ch.en}:1.2), ${finalEN}` 
+              }; 
             }); 
           }
           setPrompts(genPrompts); setLoading(false);
@@ -834,7 +875,7 @@ async function doUnlock(isAutoLogin = false) {
       };
 
       const randomize = () => {
-        setSelF(pick(allF)?.id||null); setSelB(pick(allB)?.id||null); setSelL(pick(allL)?.id||null); setSelP(pick(allP)?.id||null); setSelM(pick(allM)?.id||null); setSelS(pick(sceneList)?.id||null); setSelExpr(pick(allExpr)?.id || null);
+        setSelF(pick(allF)?.id||null); setSelB(pick(allB)?.id||null); setSelL(pick(allL)?.id||null); setSelP(pick(allP)?.id||null); setSelM(pick(allM)?.id||null); setSelS(pick(filteredSceneList)?.id||null); setSelExpr(pick(allExpr)?.id || null);
         const acc1 = pick(allA); const acc2 = pick(allA); if(acc1 && acc2) { setSelA([acc1.id, acc2.id].filter((v,i,a) => a.indexOf(v)===i)); }
         const styles = HAIR_DB.filter(o => parseInt(o.id.replace("hr","")) <= 90); const colors = HAIR_DB.filter(o => parseInt(o.id.replace("hr","")) >= 91);
         setSelHairStyle(styles[Math.floor(Math.random()*styles.length)]?.id || null); setSelHairColor(Math.random() > 0.5 ? colors[Math.floor(Math.random()*colors.length)]?.id : null); 
@@ -1028,8 +1069,35 @@ async function doUnlock(isAutoLogin = false) {
                   </div>
                 </Sec>
 
-                <Sec title="⑧ 場景 SCENE" aiCategory="scene" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.purple} onClear={()=>setSelS(null)}>
-                  <DropSelect items={sceneList} value={selS} onChange={setSelS} accent={C.purple} />
+                <Sec title="⑧ 場景 SCENE" aiCategory="scene" onAIGenerate={handleAIGenerate} onCustomAdd={handleCustomAdd} accentColor={C.purple} onClear={()=>{ setSelS(null); setSceneCat("all"); }}>
+                  {/* ── 分類標籤列 ── */}
+                  {SCENE_CATS_DB.length > 0 && (()=>{
+                    return <div style={{marginBottom:8}}>
+                      <div style={{display:"flex", flexWrap:"wrap", gap:3, marginBottom:5}}>
+                        {SCENE_CATS_DB.map(c => {
+                          const cnt = c.key === "all" ? sceneList.length : sceneList.filter(s=>s.cat===c.key).length;
+                          const isActive = sceneCat === c.key;
+                          const isMatrix = c.key === "matrix";
+                          return <button key={c.key} onClick={()=>{ setSceneCat(c.key); setSelS(null); }} style={{
+                            padding:"3px 7px", borderRadius:9, fontSize:10, cursor:"pointer", fontWeight:700,
+                            background: isActive ? `${C.purple}40` : "transparent",
+                            border: `1px solid ${isActive ? C.purple : cnt>0 ? `${C.purple}55` : "var(--border)"}`,
+                            color: isActive ? C.purple : isMatrix ? `${C.purple}88` : cnt>0 ? `${C.purple}BB` : "var(--subtext)",
+                            transition:"all 0.15s",
+                            fontStyle: isMatrix ? "italic" : "normal"
+                          }}>
+                            {c.label}
+                            {c.key !== "all" && <span style={{marginLeft:2, fontSize:8, opacity:0.55, fontStyle:"normal"}}>{cnt}</span>}
+                          </button>;
+                        })}
+                      </div>
+                      <div style={{fontSize:10, color:"var(--subtext)", letterSpacing:0.3}}>
+                        顯示 <span style={{color:C.purple, fontWeight:700}}>{filteredSceneList.length}</span> 個場景
+                        {sceneCat !== "all" && <span style={{marginLeft:6, opacity:0.6}}>（全部 {sceneList.length}）</span>}
+                      </div>
+                    </div>;
+                  })()}
+                  <DropSelect items={filteredSceneList} value={selS} onChange={setSelS} accent={C.purple} />
                 </Sec>
                 
                 <div style={{background:"var(--card)", border:`1px solid ${C.purple}40`, borderRadius:9, padding:"11px 13px", marginBottom:8}}>
@@ -1054,15 +1122,131 @@ async function doUnlock(isAutoLogin = false) {
                   })()}
                 </div>
                 
-                <Sec title={`⑩ 超級視覺張力 ${isCloudMode?"(雲端安全)":""}`} accentColor={isCloudMode?"var(--subtext)":C.green} onClear={()=>setSelBra([])} actionNode={<button onClick={drawRandomTensions} style={{background:"transparent",border:`1px solid ${isCloudMode?"var(--subtext)":C.green}`,color:isCloudMode?"var(--text)":C.green,padding:"2px 8px",borderRadius:4,fontSize:10,cursor:"pointer",fontWeight:700}}>✦ 抽5項</button>} containerStyle={{flex: 1, display: "flex", flexDirection: "column", marginBottom: 0}}>
-                  <div style={{flex: 1, display:"flex",flexWrap:"wrap",gap:5, overflowY:"auto", alignContent:"flex-start", paddingRight:"4px", paddingBottom:"4px", maxHeight:"360px"}}>
-                    {BRA_DB.map((b,i)=>{ 
-                      const id=`bra${i}`; const sel=selBra.includes(id); 
-                      let labelText = b.zh.includes(" — ") ? b.zh.split(" — ")[0] : b.zh.split("，")[0];
-                      if(labelText.length > 18) labelText = labelText.substring(0, 18) + "...";
-                      return <button key={id} onClick={()=>setSelBra(p=>sel?p.filter(k=>k!==id):[...p,id])} title={b.zh} style={{background:sel?(isCloudMode?`${C.cloud}33`:`${C.green}26`):"var(--card)",border:`1px solid ${sel?(isCloudMode?C.cloud:C.green):"var(--border)"}`,color:sel?(isCloudMode?C.cloud:C.green):"var(--text)",padding:"6px 12px",borderRadius:13,fontSize:11,cursor:"pointer",transition:"all 0.1s", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%"}}>{labelText}</button>; 
-                    })}
+                <Sec title={`⑩ 超級視覺張力 ${isCloudMode?"(雲端安全)":""}`} accentColor={isCloudMode?"var(--subtext)":C.green} onClear={()=>setSelBra([])} actionNode={
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <span style={{fontSize:9,color:"var(--subtext)",fontFamily:"monospace"}}>{selBra.length>0?`已選${selBra.length}`:""}</span>
+                    <button onClick={drawRandomTensions} style={{background:"transparent",border:`1px solid ${isCloudMode?"var(--subtext)":C.green}`,color:isCloudMode?"var(--text)":C.green,padding:"2px 8px",borderRadius:4,fontSize:10,cursor:"pointer",fontWeight:700}}>✦ 抽5項</button>
                   </div>
+                } containerStyle={{flex:1,display:"flex",flexDirection:"column",marginBottom:0}}>
+                {(()=>{
+                  // ── 分類定義 ──
+                  const BRA_CATS = [
+                    { key:"all",   label:"🌐 全部",     color: C.green },
+                    { key:"prose", label:"📝 原始散文",  color:"#e8a838", badge:"原有" },
+                    { key:"univ",  label:"🧲 通用物理",  color:"#6af7c4", badge:"新增" },
+                    { key:"緊",    label:"🔥 緊·張力",   color:"#ff6b35", badge:"原有" },
+                    { key:"透",    label:"🌊 透·穿透",   color:"#00d4ff", badge:"原有" },
+                    { key:"覆",    label:"🪐 覆·貼合",   color:"#a855f7", badge:"原有" },
+                    { key:"疊",    label:"📐 疊·突起",   color:"#f76ab4", badge:"新增" },
+                    { key:"細",    label:"✨ 細·質感",   color:"#ffd700", badge:"原有" },
+                  ];
+                  // Weight badge config
+                  const wBadge = w => {
+                    if(w >= 1.5) return { label:"◉1.5", color:"#ff4444", title:"核心輸出 — AI必須清晰呈現" };
+                    if(w >= 1.4) return { label:"◎1.4", color:"#ff8c00", title:"重要現象 — 強化呈現" };
+                    if(w >= 1.3) return { label:"○1.3", color:"#ffd700", title:"輔助質感 — 自然呈現" };
+                    return       { label:"·1.2",  color:"#888",    title:"情境背景 — 輕量引導" };
+                  };
+
+                  const [braCat, setBraCat] = React.useState("all");
+                  // sync to window for drawRandomTensions
+                  React.useEffect(()=>{ if(typeof window!=='undefined') window.__braCat=braCat; },[braCat]);
+
+                  const filtered = braCat === "all" ? BRA_DB : BRA_DB.filter(b => b.cat === braCat);
+                  const catInfo = BRA_CATS.find(c=>c.key===braCat) || BRA_CATS[0];
+
+                  return <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {/* ── 分類標籤列 ── */}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                      {BRA_CATS.map(c=>{
+                        const isActive = braCat===c.key;
+                        const cnt = c.key==="all" ? BRA_DB.length : BRA_DB.filter(b=>b.cat===c.key).length;
+                        const isNew = c.badge==="新增";
+                        return <button key={c.key} onClick={()=>setBraCat(c.key)} style={{
+                          padding:"3px 7px", borderRadius:9, fontSize:10, cursor:"pointer", fontWeight:700,
+                          background: isActive?`${c.color}33`:"transparent",
+                          border:`1px solid ${isActive?c.color:isNew?`${c.color}66`:"var(--border)"}`,
+                          color: isActive?c.color:isNew?`${c.color}BB`:"var(--subtext)",
+                          transition:"all 0.15s", position:"relative"
+                        }}>
+                          {c.label}
+                          {c.badge==="新增" && <span style={{fontSize:8,marginLeft:3,background:"#f76ab433",color:"#f76ab4",padding:"0 3px",borderRadius:3,border:"1px solid #f76ab466"}}>新</span>}
+                          <span style={{fontSize:8,marginLeft:2,opacity:0.6}}>{cnt}</span>
+                        </button>;
+                      })}
+                    </div>
+
+                    {/* ── 圖例說明列 ── */}
+                    <div style={{display:"flex",gap:8,alignItems:"center",padding:"4px 6px",background:"var(--card)",borderRadius:6,flexWrap:"wrap"}}>
+                      <span style={{fontSize:9,color:"var(--subtext)"}}>權重：</span>
+                      {[{w:1.5,label:"◉1.5 核心"},{w:1.4,label:"◎1.4 重要"},{w:1.3,label:"○1.3 輔助"}].map(({w,label})=>{
+                        const wb=wBadge(w);
+                        return <span key={w} style={{fontSize:9,color:wb.color,fontFamily:"monospace"}} title={wb.title}>{label}</span>;
+                      })}
+                      <span style={{fontSize:9,color:"#666",marginLeft:4}}>│</span>
+                      <span style={{fontSize:9,color:"#f76ab4",fontFamily:"monospace"}}>新 = v9.2新增</span>
+                      <span style={{fontSize:9,color:C.green,marginLeft:"auto",fontFamily:"monospace"}}>{filtered.length} 條</span>
+                    </div>
+
+                    {/* ── 按鈕列 ── */}
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,overflowY:"auto",alignContent:"flex-start",paddingRight:"4px",paddingBottom:"4px",maxHeight:"320px"}}>
+                      {filtered.map((b)=>{
+                        const idx = BRA_DB.indexOf(b);
+                        const id = `bra${idx}`;
+                        const sel = selBra.includes(id);
+                        const isNew = b.ver==="new";
+                        const wb = wBadge(b.w||1.3);
+                        const catC = (BRA_CATS.find(c=>c.key===b.cat)||BRA_CATS[0]).color;
+
+                        // Label extraction
+                        let labelText = b.zh||"";
+                        if(labelText.includes(" — ")) labelText = labelText.split(" — ")[0];
+                        else if(labelText.includes("，")) labelText = labelText.split("，")[0];
+                        if(labelText.length > 16) labelText = labelText.substring(0,16)+"…";
+
+                        return <button key={id} onClick={()=>setSelBra(p=>sel?p.filter(k=>k!==id):[...p,id])} title={b.zh}
+                          style={{
+                            position:"relative",
+                            background: sel?(isCloudMode?`${C.cloud}2A`:`${catC}22`):"var(--card)",
+                            border:`1px solid ${sel?catC:"var(--border)"}`,
+                            color: sel?catC:"var(--text)",
+                            padding:"5px 8px 5px 8px",
+                            paddingRight:"32px",
+                            borderRadius:11, fontSize:11, cursor:"pointer",
+                            transition:"all 0.1s", whiteSpace:"nowrap",
+                            display:"flex", alignItems:"center", gap:4,
+                            minWidth:0
+                          }}>
+                          {/* Weight dot */}
+                          <span style={{fontSize:9,color:wb.color,fontFamily:"monospace",flexShrink:0,opacity:sel?1:0.6}}>{wb.label}</span>
+                          <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{labelText}</span>
+                          {/* New badge */}
+                          {isNew && <span style={{
+                            position:"absolute",right:5,top:"50%",transform:"translateY(-50%)",
+                            fontSize:8,background:"#f76ab422",color:"#f76ab4",
+                            padding:"1px 4px",borderRadius:3,border:"1px solid #f76ab455",
+                            fontWeight:700,flexShrink:0
+                          }}>新</span>}
+                        </button>;
+                      })}
+                    </div>
+
+                    {/* ── 已選預覽列 ── */}
+                    {selBra.length > 0 && <div style={{borderTop:"1px solid var(--border)",paddingTop:5,display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {selBra.map(id=>{
+                        const idx=parseInt(id.replace("bra",""));
+                        const b=BRA_DB[idx]; if(!b) return null;
+                        const wb=wBadge(b.w||1.3);
+                        const catC=(BRA_CATS.find(c=>c.key===b.cat)||BRA_CATS[0]).color;
+                        let lbl=b.zh||""; if(lbl.includes(" — ")) lbl=lbl.split(" — ")[0]; if(lbl.length>12) lbl=lbl.substring(0,12)+"…";
+                        return <span key={id} style={{fontSize:10,color:catC,background:`${catC}18`,border:`1px solid ${catC}44`,padding:"2px 6px",borderRadius:8}}>
+                          <span style={{color:wb.color,fontSize:8}}>{wb.label} </span>{lbl}
+                          <span onClick={()=>setSelBra(p=>p.filter(k=>k!==id))} style={{marginLeft:4,cursor:"pointer",opacity:0.6,fontSize:9}}>✕</span>
+                        </span>;
+                      })}
+                    </div>}
+                  </div>;
+                })()}
                 </Sec>
               </div>
             </div>
