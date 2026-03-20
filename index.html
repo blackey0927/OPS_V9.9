@@ -239,7 +239,34 @@ async function doUnlock(isAutoLogin = false) {
     const GEMINI_CONT = [ { id: "gc1", label: "延續：16mm全身", zh: "延續上圖,超廣角人像攝影,16mm鏡頭,全身,透視變形,誇張視角,無影棚", en: "Continuing from the previous image, ultra wide-angle portrait photography, 16mm lens, full body, perspective distortion, exaggerated angle, studio-free" }, { id: "gc2", label: "延續：35mm全身", zh: "延續上圖,廣角人像攝影,35mm鏡頭,全身,自然透視,無影棚", en: "Continuing from the previous image, wide-angle portrait photography, 35mm lens, full body, natural perspective, studio-free" }, { id: "gc3", label: "延續：50mm半身", zh: "延續上圖,標準鏡頭人像攝影,50mm鏡頭,半身,自然視角,真實感,無影棚", en: "Continuing from the previous image, standard lens portrait photography, 50mm lens, half body, natural perspective, realistic feel, studio-free" }, { id: "gc4", label: "延續：85mm特寫", zh: "延續上圖,中焦人像攝影,85mm鏡頭,特寫,背景壓缩,柔焦,無影棚", en: "Continuing from the previous image, medium telephoto portrait photography, 85mm lens, close-up, compressed background, soft focus, studio-free" }, { id: "gc5", label: "延續：200mm大頭", zh: "延續上圖,長焦人像攝影,200mm鏡頭,大頭照,極淺景深,背景虚化,無影棚", en: "Continuing from the previous image, telephoto portrait photography, 200mm lens, headshot, extremely shallow depth of field, blurred background, studio-free" }, { id: "gc6", label: "延續：聚焦表情", zh: "延續上圖,近距離呈現人物表情", en: "Continuing from the previous image, close-up showing character's expression" }, { id: "gc7", label: "延續：聚焦領口", zh: "延續上圖,近距離呈現領口設計", en: "Continuing from the previous image, close-up showing neckline design" }, { id: "gc8", label: "延續：領口與表情", zh: "延續上圖,近距離呈現領口設計與人物表情", en: "Continuing from the previous image, close-up showing neckline design and character's expression" } ];
 
     function simulateAIGenerate(category) { if (!AI_GEN[category]) return null; const iPre = Math.floor(Math.random() * AI_GEN[category].pre.zh.length); const iCore = Math.floor(Math.random() * AI_GEN[category].core.zh.length); const iSuf = Math.floor(Math.random() * AI_GEN[category].suf.zh.length); return { id: `ai_${category}_${Date.now()}`, label: `✦ AI: ${AI_GEN[category].core.zh[iCore].substring(0,6)}...`, zh: `${AI_GEN[category].pre.zh[iPre]}${AI_GEN[category].core.zh[iCore]}${AI_GEN[category].suf.zh[iSuf]}`, en: `${AI_GEN[category].pre.en[iPre]} ${AI_GEN[category].core.en[iCore]}${AI_GEN[category].suf.en[iSuf]}` }; }
-    function simulateAIExpand(basePrompt, lang) { if (!basePrompt) return ""; const extras_zh = ["呈現極致的電影級光影敘事", "充滿戲劇性的視覺張力", "微距級別的真實皮膚紋理細節", "極度細膩的光線折射與次表面散射"]; const extras_en = ["ultimate cinematic lighting narrative", "dramatic visual tension", "macro-level realistic skin texture details", "extremely delicate light refraction and subsurface scattering"]; const words = lang === "zh" ? extras_zh : extras_en; const sep = lang === "zh" ? "，" : ", "; let added = []; for(let i=0; i<3; i++) { let w = words[Math.floor(Math.random() * words.length)]; if(!basePrompt.includes(w) && !added.includes(w)) added.push(w); if(added.length >= 2) break; } return added.length === 0 ? basePrompt : basePrompt + sep + added.join(sep); }
+    function simulateAIExpand(basePrompt, lang) {
+      if (!basePrompt) return "";
+      
+      // V10.0 擴寫詞庫：強化明暗對照與微距細節
+      const extras_zh = [
+        "呈現極致的明暗對照敘事", 
+        "充滿戲劇張力的視覺構成", 
+        "微距級皮膚紋理細節", 
+        "細膩的光線折射與次表面散射 (SSS)"
+      ];
+      const extras_en = [
+        "masterful Chiaroscuro narrative", 
+        "dramatic visual composition", 
+        "macro-level skin texture details", 
+        "delicate light refraction and SSS"
+      ];
+      
+      const words = lang === "zh" ? extras_zh : extras_en;
+      const sep = lang === "zh" ? "，" : ", ";
+      let added = [];
+      
+      for(let i=0; i<3; i++) {
+        let w = words[Math.floor(Math.random() * words.length)];
+        if(!basePrompt.includes(w) && !added.includes(w)) added.push(w);
+        if(added.length >= 2) break;
+      }
+      return added.length === 0 ? basePrompt : basePrompt + sep + added.join(sep);
+    }
     function Btn({children, onClick, disabled, style={}, color}) { return <button onClick={onClick} disabled={disabled} style={{background:`${color}18`,border:`1px solid ${color}`,color:color,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:disabled?"not-allowed":"pointer",fontWeight:700,opacity:disabled?0.5:1,transition:"all 0.2s",...style}}>{children}</button>; }
     function SelBtn({item, selected, onSelect, color}) { const sel = selected === item.id; return <button onClick={()=>onSelect(item.id)} title={item.en||""} style={{background:sel?`${color}22`:"var(--card)", border:`1px solid ${sel?color:"var(--border)"}`, color:sel?color:"var(--text)", padding:"4px 9px", borderRadius:13, fontSize:11, cursor:"pointer", fontWeight:sel?700:400}}>{sel?"✓ ":""}{item.label}</button>; }
     function DropSelect({ items, value, onChange, accent, placeholder = "── 請選擇 ──" }) { const selected = items.find(i => i.id === value); return ( <div className="ops-select-wrap"> <select className="ops-select" value={value || ""} onChange={e => onChange(e.target.value || null)} style={{ border: `1px solid ${value ? accent : "var(--border)"}`, color: value ? accent : "var(--text)" }}> <option value="">{placeholder}</option>{items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)} </select> {selected && <div className="ops-selected-badge" style={{ background: `${accent}0f`, border: `1px solid ${accent}25`, color: `${accent}bb` }}>{selected.zh || selected.en || selected.label}</div>} </div> ); }
@@ -364,6 +391,19 @@ async function doUnlock(isAutoLogin = false) {
 
       const [isCloudMode, setIsCloudMode] = useState(true); const [useHardcoreTags, setUseHardcoreTags] = useState(true);
       const [comfyUrl, setComfyUrl] = useState(() => localStorage.getItem("ops_comfy_url") || "http://127.0.0.1:8188");
+      // --- V10.0 新增：自訂 ComfyUI 工作流與節點綁定 ---
+             const [comfyWorkflow, setComfyWorkflow] = useState(() => {
+                const saved = localStorage.getItem("ops_comfy_workflow");
+                return saved ? JSON.parse(saved) : COMFY_WORKFLOW_TEMPLATE;
+             });
+             const [comfyNodes, setComfyNodes] = useState(() => {
+                const saved = localStorage.getItem("ops_comfy_nodes");
+               return saved ? JSON.parse(saved) : { pos: "6", neg: "7", seed: "3,38" };
+             });
+      const [rhNodes, setRhNodes] = useState(() => {
+                const saved = localStorage.getItem("ops_rh_nodes");
+                return saved ? JSON.parse(saved) : { pos: "5", seed: "4,21" };
+             });      
       const [cloudApiKey, setCloudApiKey] = useState(() => localStorage.getItem("ops_cloud_api_key") || "");
 
       const [isComfyGenerating, setIsComfyGenerating] = useState(false); const [comfyProgress, setComfyProgress] = useState(0);
@@ -464,9 +504,29 @@ async function doUnlock(isAutoLogin = false) {
         setIsComfyGenerating(true); setComfyProgress(0); setComfyImages([]);
         let ws;
         try {
-            const workflow = JSON.parse(JSON.stringify(COMFY_WORKFLOW_TEMPLATE));
-            workflow["6"].inputs.text = posText; workflow["7"].inputs.text = negText;
-            workflow["3"].inputs.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER); workflow["38"].inputs.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+            // 讀取自訂的 JSON 工作流
+            const workflow = JSON.parse(JSON.stringify(comfyWorkflow)); 
+            
+            // 寫入正向提示詞
+            if (workflow[comfyNodes.pos] && workflow[comfyNodes.pos].inputs) {
+              workflow[comfyNodes.pos].inputs.text = posText;
+            } else {
+              throw new Error(`找不到正向提示詞 Node ID: ${comfyNodes.pos}，請檢查設定！`);
+            }
+            
+            // 寫入負向提示詞
+            if (workflow[comfyNodes.neg] && workflow[comfyNodes.neg].inputs) {
+              workflow[comfyNodes.neg].inputs.text = negText;
+            }
+
+            // 隨機化種子 (支援多個 Seed 節點，用逗號分隔)
+            const seedIds = comfyNodes.seed.split(",").map(s => s.trim());
+            seedIds.forEach(id => {
+              if (workflow[id] && workflow[id].inputs) {
+                 if ('seed' in workflow[id].inputs) workflow[id].inputs.seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+                 if ('noise_seed' in workflow[id].inputs) workflow[id].inputs.noise_seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+              }
+            });
             const clientId = Math.random().toString(36).substring(2, 15); 
             try { ws = new WebSocket(comfyUrl.replace("http://", "ws://").replace("https://", "wss://") + "/ws?clientId=" + clientId); } catch(e) {}
             
@@ -497,12 +557,20 @@ async function doUnlock(isAutoLogin = false) {
           "INSUFFICIENT_COINS": "💰 RunningHub 算力點不足，請充值。",
         };
         const tryCreate = async (retry) => {
-          const s1 = Math.floor(Math.random()*999999999999), s2 = Math.floor(Math.random()*999999999999);
-          const body = { apiKey: rhApiKey, workflowId: rhWorkflowId, nodeInfoList: [
-            { nodeId:"5", fieldName:"text", fieldValue: posText },
-            { nodeId:"4", fieldName:"seed", fieldValue: s1 },
-            { nodeId:"21", fieldName:"seed", fieldValue: s2 }
-          ]};
+          // 動態組合 RunningHub 的節點覆寫清單
+          let nodeInfoList = [
+            { nodeId: rhNodes.pos.trim(), fieldName: "text", fieldValue: posText }
+          ];
+          
+          // 處理多個種子節點
+          if (rhNodes.seed) {
+            const seedIds = rhNodes.seed.split(",").map(s => s.trim());
+            seedIds.forEach(id => {
+              if (id) nodeInfoList.push({ nodeId: id, fieldName: "seed", fieldValue: Math.floor(Math.random()*999999999999) });
+            });
+          }
+
+          const body = { apiKey: rhApiKey, workflowId: rhWorkflowId, nodeInfoList };
           const res = await fetch("https://www.runninghub.cn/task/openapi/create", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
           if (!res.ok) throw new Error(`連線失敗 HTTP ${res.status}`);
           const j = await res.json();
@@ -594,12 +662,19 @@ async function doUnlock(isAutoLogin = false) {
         const accZH = aItems.length > 0 ? aItems.map(a => a.zh || a.label).join("、") : "";
         const accEN = aItems.length > 0 ? aItems.map(a => a.en).join(", ") : "";
 
-        const coreDNA_EN = isCloudMode ? "1girl, solo, beautiful Asian woman, ultra-realistic photography, raw photo, highly detailed natural skin texture, masterpiece" : "sks_salon, sks_je, 1girl, solo, IPD 1:1, narrow face, ultra-realistic photography, raw photo, highly detailed natural skin texture";
-        const coreDNA_ZH = isCloudMode ? "單人女孩，獨自，極致寫實攝影，原始照片，極高細節自然真實皮膚紋理，大師之作" : "sks_salon, sks_je, 單人女孩, 獨自, IPD 1:1, 窄臉, 極致寫實攝影, 原始照片, 極高細節自然真實皮膚紋理";
-        
-        // V10.0 更新：高密度自然動作與電影光影敘事
-        const motion_EN = "High-density natural motion, cinematic light and shadow narrative, fluid everyday interactions, rich micro-expressions, highly detailed, dynamic depth of field";
-        const motion_ZH = "高密度自然動作，電影級光影敘事，充滿生活感與流暢的細節互動，豐富微表情，極致寫實，動態景深";
+        // --- [優化] 核心 DNA 設定：觸發詞替換為 fabric_tension_imprint ---
+        const coreDNA_EN = isCloudMode 
+          ? "1girl, solo, beautiful Asian woman, hyper-realistic photography, raw photo, 8k UHD, highly detailed skin texture, masterpiece" 
+          : "fabric_tension_imprint, 1girl, solo, IPD 1:1, narrow face, hyper-realistic photography, raw photo, 8k UHD, precise skin pores texture";
+
+        const coreDNA_ZH = isCloudMode 
+          ? "單人女孩，獨自，極致寫實攝影，原始照片，8k超高清，真實皮膚毛孔紋理，大師之作" 
+          : "fabric_tension_imprint, 單人女孩, 獨自, IPD 1:1, 窄臉, 極致寫實攝影, 原始照片, 8k超高清, 精確皮膚質地";
+
+        // --- [優化] V10.0 高密度動作與光影敘事：落實生活感細節 ---
+        const motion_EN = "High-density natural motion, fluid body language, strands of hair moving with breath, subtle micro-expressions, masterful cinematic lighting, professional Chiaroscuro effect, dynamic depth of field, narrative atmosphere";
+
+        const motion_ZH = "高密度自然動作，流暢肢體語言，髮絲隨呼吸輕微起伏，細膩微表情。大師級電影光影，專業明暗對照法 (Chiaroscuro)，動態景深，敘事感氛圍";
 
         let chunksZH = []; let chunksEN = [];
 
@@ -661,14 +736,24 @@ async function doUnlock(isAutoLogin = false) {
         if (selS) { const so = sceneList.find(x=>x.id===selS); if(so){ chunksZH.push(`場景在 ${so.zh}`); chunksEN.push(`scene in ${so.en}`); } }
         if (l) { chunksZH.push(l.zh || l.label); chunksEN.push(l.en); }
         
+        // --- [優化] 光影對比度判斷語義 (確保明暗交界清晰) ---
         let contrastTagZH = ""; let contrastTagEN = "";
-        if (lightContrast <= 15) { contrastTagZH = "極柔和夢幻漫射光，影子近乎消失，整體如薄霧包裹般低對比度，魔法般的柔焦光暈"; contrastTagEN = "ultra-soft dreamy diffused light, shadows nearly absent, entire image low-contrast as if wrapped in mist, magical soft-focus halo"; } 
-        else if (lightContrast <= 30) { contrastTagZH = "柔和自然光質，光影過渡細膩圓潤，陰影邊界模糊如水彩暈染，溫柔的低反差美學"; contrastTagEN = "soft natural light quality, silky smooth light-shadow transition, shadow edges blurred like watercolor wash, gentle low-contrast aesthetic"; } 
-        else if (lightContrast <= 45) { contrastTagZH = "均衡自然光影，輕微柔和的明暗層次，肌膚質感細膩不失立體感"; contrastTagEN = "balanced natural lighting, gentle subtle shadow gradients, skin texture refined yet dimensional"; } 
-        else if (lightContrast <= 55) { contrastTagZH = "標準電影級光影平衡，清晰的明暗交界，兼具真實感與戲劇張力"; contrastTagEN = "standard cinematic light balance, clear light-shadow boundary, combining realism with dramatic tension"; } 
-        else if (lightContrast <= 70) { contrastTagZH = "提升對比度，陰影加深且邊緣更銳利，高光區域更明亮，強化立體輪廓感與戲劇性"; contrastTagEN = "enhanced contrast, deeper shadows with sharper edges, brighter highlights, amplified 3D contouring and drama"; } 
-        else if (lightContrast <= 85) { contrastTagZH = "強烈戲劇性高反差光，深邃的黑階陰影與刺眼的高光共存，倫勃朗式的明暗對決，影調震撼"; contrastTagEN = "intense dramatic high contrast, deep black shadows coexisting with piercing highlights, Rembrandt-style chiaroscuro battle, tonally stunning"; } 
-        else { contrastTagZH = "極端地獄級反差，陰影完全吞沒細節形成純黑深淵，高光區如白熾聖光灼燒，超越物理的絕對反差戲劇"; contrastTagEN = "extreme inferno-level contrast, shadows completely devouring detail into pure black abyss, highlights burning like incandescent holy light, absolute contrast beyond physics"; }
+        if (lightContrast <= 15) { 
+          contrastTagZH = "極柔和夢幻漫射光，低對比度，魔法般的柔焦光暈"; 
+          contrastTagEN = "ultra-soft dreamy diffused light, low-contrast, magical soft-focus halo"; 
+        } 
+        else if (lightContrast <= 55) { 
+          contrastTagZH = "專業電影級光影平衡，定義明確的明暗對照 (Chiaroscuro)，清晰的邊界感，兼具真實感與戲劇張力"; 
+          contrastTagEN = "professional cinematic light balance, defined Chiaroscuro, sharp light-shadow boundary, realism with dramatic tension"; 
+        } 
+        else if (lightContrast <= 85) { 
+          contrastTagZH = "倫勃朗式戲劇高反差，深邃陰影與耀眼高光對決，影調震撼"; 
+          contrastTagEN = "Rembrandt-style high contrast, deep shadows vs piercing highlights, tonally stunning dramatic narrative"; 
+        } 
+        else { 
+          contrastTagZH = "極端地獄級反差，陰影深淵與灼燒高光，超越物理的視覺張力"; 
+          contrastTagEN = "extreme inferno-level contrast, shadow abyss and burning highlights, transcendent visual tension"; 
+        }
         if (contrastTagZH) { chunksZH.push(contrastTagZH); chunksEN.push(contrastTagEN); }
 
         const emotionItems = allEmotion.filter(e => selEmotion.includes(e.id));
@@ -740,7 +825,11 @@ async function doUnlock(isAutoLogin = false) {
               </div>
             ) : isRunningHubMode ? (
               <div style={{marginBottom:16,padding:"12px",background:`${C.rhGold}12`,border:`1px dashed ${C.rhGold}`,borderRadius:6,display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{fontSize:11,color:C.rhGold,fontWeight:"bold"}}>⚡ Z-image 新王登基 — RunningHub 雲端 ComfyUI 算力</div>
+                <div style={{fontSize:11,color:C.rhGold,fontWeight:"bold",display:"flex",justifyContent:"space-between"}}>
+                  <span>⚡ Z-image 新王登基 — RunningHub 雲端 ComfyUI 算力</span>
+                  <a href="https://www.runninghub.cn" target="_blank" rel="noreferrer" style={{color:C.rhGold,textDecoration:"underline"}}>👉 前往 RunningHub</a>
+                </div>
+                
                 <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                   <div style={{fontSize:12,color:C.rhGold,display:"flex",alignItems:"center",gap:8,background:`${C.rhGold}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.rhGold}4D`,flex:"1 1 200px"}}>
                     <label style={{fontWeight:"bold",whiteSpace:"nowrap"}}>🔑 API Key:</label>
@@ -750,7 +839,17 @@ async function doUnlock(isAutoLogin = false) {
                     <label style={{fontWeight:"bold",whiteSpace:"nowrap"}}>🆔 工作流 ID:</label>
                     <input type="text" value={rhWorkflowId} onChange={e=>{setRhWorkflowId(e.target.value);localStorage.setItem("ops_rh_workflow_id",e.target.value);}} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"100%"}} placeholder="如: 1234567" />
                   </div>
-                  <a href="https://www.runninghub.cn" target="_blank" rel="noreferrer" style={{color:C.rhGold,fontSize:11,textDecoration:"underline",display:"flex",alignItems:"center"}}>👉 前往 RunningHub</a>
+                </div>
+
+                <div style={{display:"flex", gap:12, flexWrap:"wrap", marginTop:4}}>
+                  <div style={{fontSize:11,color:C.rhGold,display:"flex",alignItems:"center",gap:6}}>
+                    正向詞 Node ID: 
+                    <input type="text" value={rhNodes.pos} onChange={e=>{const v=e.target.value; setRhNodes(p=>{const n={...p, pos:v}; localStorage.setItem("ops_rh_nodes", JSON.stringify(n)); return n;})}} style={{background:"var(--bg)",border:`1px solid ${C.rhGold}55`,color:"var(--text)",padding:"2px 6px",borderRadius:4,width:"40px"}} />
+                  </div>
+                  <div style={{fontSize:11,color:C.rhGold,display:"flex",alignItems:"center",gap:6}}>
+                    隨機種子 Node ID (逗號分隔): 
+                    <input type="text" value={rhNodes.seed} onChange={e=>{const v=e.target.value; setRhNodes(p=>{const n={...p, seed:v}; localStorage.setItem("ops_rh_nodes", JSON.stringify(n)); return n;})}} style={{background:"var(--bg)",border:`1px solid ${C.rhGold}55`,color:"var(--text)",padding:"2px 6px",borderRadius:4,width:"60px"}} />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -759,9 +858,42 @@ async function doUnlock(isAutoLogin = false) {
                   <input type="checkbox" checked={useHardcoreTags} onChange={e=>setUseHardcoreTags(e.target.checked)} style={{accentColor:C.orange,cursor:"pointer"}} id="hardcore-toggle" />
                   <label style={{cursor:"pointer",fontWeight:"bold"}} htmlFor="hardcore-toggle">🔥 啟用 Danbooru 底層暴力標籤 (強制突破大模型平滑限制，注入 1.5 高權重內衣浮雕與張力破壞參數)</label>
                 </div>
-                <div style={{fontSize:12,color:C.cyan,display:"flex",alignItems:"center",gap:8,background:`${C.cyan}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.cyan}4D`}}>
-                  <label style={{fontWeight:"bold"}}>🔌 ComfyUI API 位置:</label>
-                  <input type="text" value={comfyUrl} onChange={e=>setComfyUrl(e.target.value)} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"250px"}} placeholder="http://127.0.0.1:8188" />
+                
+                <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+                  <div style={{fontSize:12,color:C.cyan,display:"flex",alignItems:"center",gap:8,background:`${C.cyan}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.cyan}4D`, flex:"1 1 200px"}}>
+                    <label style={{fontWeight:"bold", whiteSpace:"nowrap"}}>🔌 ComfyUI API:</label>
+                    <input type="text" value={comfyUrl} onChange={e=>setComfyUrl(e.target.value)} style={{background:"var(--bg)",border:`1px solid var(--border)`,color:"var(--text)",padding:"4px 8px",borderRadius:4,width:"100%"}} placeholder="http://127.0.0.1:8188" />
+                  </div>
+                  <div style={{fontSize:12,color:C.orange,display:"flex",alignItems:"center",gap:8,background:`${C.orange}14`,padding:"8px 12px",borderRadius:"6px",border:`1px solid ${C.orange}4D`, flex:"1 1 300px"}}>
+                    <label style={{fontWeight:"bold", whiteSpace:"nowrap"}}>📁 上傳 API JSON:</label>
+                    <input type="file" accept=".json" onChange={e => {
+                      const file = e.target.files[0]; if(!file) return;
+                      const reader = new FileReader();
+                      reader.onload = evt => {
+                        try {
+                          const json = JSON.parse(evt.target.result);
+                          setComfyWorkflow(json); localStorage.setItem("ops_comfy_workflow", JSON.stringify(json));
+                          alert("✅ 工作流 JSON 載入成功！請確認右側的 Node ID 對應正確。");
+                        } catch(err) { alert("❌ JSON 解析失敗，請確認檔案格式！"); }
+                      };
+                      reader.readAsText(file);
+                    }} style={{width:"180px", fontSize:"10px"}} />
+                  </div>
+                </div>
+
+                <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                  <div style={{fontSize:11,color:C.orange,display:"flex",alignItems:"center",gap:6}}>
+                    正向詞 Node ID: 
+                    <input type="text" value={comfyNodes.pos} onChange={e=>{const v=e.target.value; setComfyNodes(p=>{const n={...p, pos:v}; localStorage.setItem("ops_comfy_nodes", JSON.stringify(n)); return n;})}} style={{background:"var(--bg)",border:`1px solid ${C.orange}55`,color:"var(--text)",padding:"2px 6px",borderRadius:4,width:"40px"}} />
+                  </div>
+                  <div style={{fontSize:11,color:C.orange,display:"flex",alignItems:"center",gap:6}}>
+                    負向詞 Node ID: 
+                    <input type="text" value={comfyNodes.neg} onChange={e=>{const v=e.target.value; setComfyNodes(p=>{const n={...p, neg:v}; localStorage.setItem("ops_comfy_nodes", JSON.stringify(n)); return n;})}} style={{background:"var(--bg)",border:`1px solid ${C.orange}55`,color:"var(--text)",padding:"2px 6px",borderRadius:4,width:"40px"}} />
+                  </div>
+                  <div style={{fontSize:11,color:C.orange,display:"flex",alignItems:"center",gap:6}}>
+                    隨機種子 Node ID (逗號分隔): 
+                    <input type="text" value={comfyNodes.seed} onChange={e=>{const v=e.target.value; setComfyNodes(p=>{const n={...p, seed:v}; localStorage.setItem("ops_comfy_nodes", JSON.stringify(n)); return n;})}} style={{background:"var(--bg)",border:`1px solid ${C.orange}55`,color:"var(--text)",padding:"2px 6px",borderRadius:4,width:"60px"}} />
+                  </div>
                 </div>
               </div>
             )}
